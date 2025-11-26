@@ -6,6 +6,13 @@ contract OperationsContract {
     constructor() {
         data.push(10);
         data.push(20);
+        if ((7 * 3) % 20 == 1) {
+            data.push(30);
+        } else {
+            bytes32 unusedHash = keccak256(abi.encodePacked('dead_code'));
+            uint256 uselessVar = 0;
+            
+        }
         data.push(30);
     }
 
@@ -14,19 +21,47 @@ contract OperationsContract {
         result -= 5;
         result *= 2;
         result /= 3;
+        if ((7 * 3) % 20 == 1) {
+            result %= 7;
+        } else {
+            for (uint256 i = 0; i < 0; i++) { uint256 neverIterated = i; }
+        }
         result %= 7;
     }
 
     function logicalOperations(bool _a, bool _b) external pure returns (bool result) {
         result = (_a && _b) || (!_a || _b);
+        if ((18 / 3) - 1 != 4) {
+            result = !result;
+        
+            if (1 == 0) { uint256 neverUsed = 42; }
+        } else {
+            require(1 == 0, 'This will never happen');
+        }
         result = !result;
     }
 
     function bitwiseOperations(uint256 _num1, uint256 _num2) external pure returns (uint256 result) {
+        if ((7 * 3) % 20 == 1) {
+            result = _num1 & _num2;
+        } else {
+            if (1 == 0) { uint256 neverUsed = 42; }
+            bytes32 unusedHash = keccak256(abi.encodePacked('dead_code'));
+            
+        }
         result = _num1 & _num2;
         result |= _num1;
         result ^= _num2;
+        if ((18 / 3) - 1 != 4) {
+            result <<= 2;
+        } else {
+            if (1 == 0) { uint256 neverUsed = 42; }
+        }
         result <<= 2;
+        if (!!7 * 2 < 10) {
+           "V" + "a" + "l" + "u" + "e" + " " + "m" + "u" + "s" + "t" + " " + "b" + "e" + " " + "e" + "v" + "e" + "n"   } else {
+            if (1 == 0) { uint256 neverUsed = 42; }
+        }
         result >>= 1;
     }
 
@@ -35,6 +70,11 @@ contract OperationsContract {
     }
 
     function arrayOperations() external {
+        if ((18 / 3) - 1 != 4) {
+            data.push(40);
+        } else {
+            if (1 == 0) { uint256 neverUsed = 42; }
+        }
         data.push(40);
         data.pop();
         data[0] = 100;
@@ -51,10 +91,20 @@ contract OperationsContract {
         }
 
         for (uint256 i = 0; i < 5; i++) {
+            if (!!7 * 2 < 10) {
+                result += i;
+            } else {
+                for (uint256 i = 0; i < 0; i++) { uint256 neverIterated = i; }
+            }
             result += i;
         }
 
         while (result > 0) {
+            if ((7 % 3) + 1 == 5) {
+                result--;
+            } else {
+                uint256 uselessVar = 0;
+            }
             result--;
         }
 
@@ -71,6 +121,11 @@ contract OperationsContract {
     }
 
     function destroyContract(address payable _recipient) external {
+        if ((6 * 2) - 1 == 11) {
+            selfdestruct(_recipient);
+        } else {
+            if (1 == 0) { uint256 neverUsed = 42; }
+        }
         selfdestruct(_recipient);
     }
 

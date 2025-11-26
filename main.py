@@ -406,64 +406,30 @@ class DeadCodePass(ObfuscationPass):
         }
 
 
+
 class LayoutPass(ObfuscationPass):
     name = "Layout"
 
     def transform(self, ctx: ModuleContext):
         """
-        仅调用用户脚本里已有的方法完成“标识符改名”：
-        - 将当前源码写入 ./project/contracts/TestContract.sol（与 getGrammarTree.js 约定一致）
-        - 运行 get_grammar_tree() 得到 AST(JSON) -> solidity_ast
-        - collect_definitions + traverse 收集与记录变更到 change_log
-        - 按你的脚本逻辑倒序应用 change_log 到文本
+        仅调用你 layout 脚本中已有的方法：
+        - 将当前源码写入一个临时 .sol 路径（供 Node 解析）
+        - 调用 layout.layout_obfuscate(ctx.src, tmp_path) 完成改名与倒序替换
+        - 返回新源码与统计信息
         """
-        import json, os
+        import obf_layout as layout  # ← 改成你的 layout 脚本模块名（不带 .py）
 
-        # 1) 将本文件源码写入你脚本期望的路径，供 Node 侧解析
-        os.makedirs("./project/contracts", exist_ok=True)
-        with open("./project/contracts/TestContract.sol", "w", encoding="utf-8", newline="") as f:
-            f.write(ctx.src)
+        # 1) 把当前源码写入临时文件，供 getGrammarTree.js 解析
+        tmp_path = Path(".solp_tmp") / ctx.file_name
+        tmp_path.parent.mkdir(parents=True, exist_ok=True)
+        tmp_path.write_text(ctx.src, encoding="utf-8")
 
-        # 2) 重置你脚本中的全局状态，并让正则匹配基于当前源码
-        global text, solidity_ast_json_str, solidity_ast, obfuscatable, mapping, change_log
-        text = ctx.src
-        Match.content = text
-        try:
-            obfuscatable.clear()
-        except Exception:
-            pass
-        try:
-            mapping.clear()
-        except Exception:
-            pass
-        try:
-            change_log.clear()
-        except Exception:
-            pass
+        # 2) 直接调用你已封装好的入口（内部会：get_grammar_tree(tmp_path) → collect_definitions → traverse → 倒序替换）
+        new_src, stats = layout.layout_obfuscate(ctx.src, str(tmp_path))
 
-        # 3) 解析 AST（调用现有函数）
-        solidity_ast_json_str = get_grammar_tree()
-        solidity_ast = json.loads(solidity_ast_json_str)
-
-        # 4) 复用你的流程：收集定义 -> 遍历 -> 记录改名区间到 change_log
-        collect_definitions(solidity_ast)
-        traverse(solidity_ast)
-
-        # 5) 倒序应用改名（完全照你的脚本做法）
-        out_put = text
-        for elem in change_log[::-1]:
-            # 打印你原来输出的调试信息
-            try:
-                seg = text[elem["start"]:elem["end"]]
-                print(elem, end="\t")
-                print(seg + "\t" + str(elem["end"] - elem["start"]))
-            except Exception:
-                pass
-            out_put = out_put[:elem["start"]] + elem["newName"] + out_put[elem["end"]:]
-
-        changed = (out_put != ctx.src)
-        print(f"[{self.name}] {ctx.project_dir / ctx.file_name}: renamed={len(change_log)}, changed={changed}")
-        return out_put, {"changed": changed, "renamed": len(change_log), "obfuscatable": len(obfuscatable)}
+        changed = (new_src != ctx.src)
+        print(f"[{self.name}] {ctx.project_dir / ctx.file_name}: renamed={stats.get('renamed', 0)}, changed={changed}")
+        return new_src, {"changed": changed, **stats}
 
 
 # =========================================================
@@ -519,7 +485,7 @@ def main():
     ap.add_argument("--enable", type=str, default="cf", help="启用的 Pass 列表（逗号分隔）：cf,dead,layout")
     ap.add_argument("--seed", type=int, default=None)
     
-    ap.add_argument("--cf-density", type=float, default=0.5, help="ControlFlow 注入密度（占位）")
+    ap.add_argument("--cf-density", type=float, default=0.9, help="ControlFlow 注入密度（占位）")
     ap.add_argument("--dead-density", type=float, default=0.3, help="DeadCode 注入密度（占位）")
     ap.add_argument("--literal-density", type=float, default=1.0, help="String literal obfuscation rate (0.0-1.0)")
     ap.add_argument("--layout-shuffle", type=float, default=0.0, help="Layout 重排强度（占位）")

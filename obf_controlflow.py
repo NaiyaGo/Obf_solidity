@@ -163,7 +163,10 @@ def obfuscate_code_cf(src_code, ast_nodes, density=0.3):
                     obf_code = add_true_condition(stmt_code)
                     # print(f"Obfuscated Statement:\n{obf_code}\n")
                     modifications.append(Insertion(stmt, obf_code))
-    return modify_text(src_code, modifications)
+    code = modify_text(src_code, modifications)
+    # code = minify_code(code)
+    # code = shuffle_code_blocks(code)
+    return code
 
 
 def obfuscate_file(file_name):
