@@ -292,9 +292,9 @@ for elem in change_log:
 
 
 if __name__ == '__main__':
-    #print("可混淆标识符：", obfuscatable)
+    print("可混淆标识符：", obfuscatable)
 
     print(json.dumps(solidity_ast, indent=2))
-    print(text[1674:1692])
+    #print(text[1674:1692])
     #print("========obfuscated code========")
     print(out_put)
