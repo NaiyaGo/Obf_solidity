@@ -51,7 +51,7 @@ predefined_keywords = {
         'msg', 'block', 'tx', 'now', 'revert', 'selfdestruct', 'suicide',
         'abi', 'encodePacked', 'encode', 'encodeWithSelector', 'encodeWithSignature',
         'memory', 'storage', 'calldata', 'indexed', 'anonymous', 'constant',
-        'immutable', 'transparent', 'import', 'as', 'from'
+        'immutable', 'transparent', 'import', 'as', 'from','_'
     }
 
 
@@ -223,10 +223,10 @@ def _handle_named_node(node: dict[str, Any]) -> None:
         add2Log(new_name, start, end + 1)
         return
 
-    if node_type == "Identifier" and node.get("name") and node.get("range"):
+    if node_type == "Identifier" and node.get("name") and node.get("name") not in predefined_keywords and node.get("range"):
         start, end = node["range"]
         new_name = rename(node["name"])
-        add2Log(new_name, start, end + 1)
+        add2Log(new_name, start, end+1 )
         return
 
     
@@ -260,17 +260,29 @@ collect_definitions(solidity_ast)
 
 
 traverse(solidity_ast)
-
+'''for elem in change_log:
+    print(text[elem["start"]:elem["end"]]+"\t"+str(elem["start"])+"\t"+str(elem["end"]))'''
 out_put:str=str(text)
-for elem in change_log[::-1]:
+change_log.sort(key=lambda item: item["start"], reverse=True)
+
+
+for elem in change_log:
+        '''        
         print(elem,end="\t")
-        print(text[elem["start"]:elem["end"]]+"\t"+str(elem["end"]-elem["start"]))
+        print("|"+text[elem["start"]:elem["end"]]+"\t"+str(elem["end"]-elem["start"]))
+        
+        print(repr("left|"+out_put[elem["start"]-20:elem["start"]]))
+        print(repr("middle|"+elem["newName"]))
+        print(repr("right|"+out_put[elem["end"]:elem["end"]+20]))
+        print(repr("right-1|"+out_put[elem["end"]-1:elem["end"]+19]))
+        '''
         out_put=out_put[:elem["start"]]+elem["newName"]+out_put[elem["end"]:]
 
 
 if __name__ == '__main__':
-    print("可混淆标识符：", obfuscatable)
-    
+    #print("可混淆标识符：", obfuscatable)
 
-    print("========obfuscated code========")
+    #print(json.dumps(solidity_ast, indent=2))
+
+    #print("========obfuscated code========")
     print(out_put)
