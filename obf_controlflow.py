@@ -11,7 +11,7 @@ from solidity_parser import filesys
 from solidity_parser.ast import symtab, ast2builder, solnodes2, solnodes
 
 # this is user input
-files_to_annotate = ['FloatingFunc.sol', 'TestContract.sol']
+files_to_annotate = ['FloatingFunc.sol', 'TestContract.sol', 'TheContract.sol']
 project_dir = Path('./project/contracts')
 output_dir = Path('./output')
 output_suffix = 'controlflow_obfuscated'
