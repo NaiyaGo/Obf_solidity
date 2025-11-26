@@ -30,7 +30,7 @@ function bitwiseSubtractByAdd(uint256 _x, uint256 _y) internal pure returns (uin
 
     pre_defined_bitwise_subtractor: Final[str] = """
 function bitwiseSubtract(uint256 _x, uint256 _y) internal pure returns (uint256) {
-    _x = -_x;
+    _x = ~_x;
     // 用位运算模拟加法器
     while (_y != 0) {
         uint256 __carry__ = (_x & _y) << 1;
@@ -65,12 +65,12 @@ function bitwiseDivide(uint256 _x, uint256 _y) internal pure returns (uint256) {
         uint256 tempY = _y;
         uint256 multiple = 1;
 
-        while (bitwiseSub(remainder, tempY) >= _y) {
+        while (bitwiseSubtract(remainder, tempY) >= _y) {
             tempY <<= 1;
             multiple <<= 1;
         }
 
-        remainder = bitwiseSub(remainder, tempY);
+        remainder = bitwiseSubtract(remainder, tempY);
         quotient = bitwiseAdd(quotient, multiple);
     }
 
@@ -83,7 +83,7 @@ function bitwiseModulo(uint256 _x, uint256 _y) internal pure returns (uint256) {
     uint256 remainder = _x;
 
     while (remainder >= _y) {
-        remainder = bitwiseSub(remainder, _y);
+        remainder = bitwiseSubtract(remainder, _y);
     }
 
     return remainder;
@@ -118,7 +118,7 @@ function bitwiseModulo(uint256 _x, uint256 _y) internal pure returns (uint256) {
     @classmethod
     def transform_add_operation_to_bitwise_adder(
             cls,
-            binary_operation_node: dict
+            binary_operation_node: dict,
     ) -> dict:
         """
         转换加法操作为位运算加法器调用
@@ -184,7 +184,7 @@ function bitwiseModulo(uint256 _x, uint256 _y) internal pure returns (uint256) {
         #   "type": "FunctionCall",
         #   "expression": {
         #     "type": "Identifier",
-        #     "name": "xxxxx"
+        #     "name": "SomeName"
         #   },
 
         new_obfusion_function_name: str = "NotDefined"
@@ -241,12 +241,14 @@ function bitwiseModulo(uint256 _x, uint256 _y) internal pure returns (uint256) {
     @classmethod
     def transform_binary_operation_to_random_other_type(
             cls,
-            binary_operation_node: dict
+            binary_operation_node: dict,
+            contain_unsigned_element: bool = True,
     ) -> dict:
         """
         转换二元运算节点，将 + 变成 - - / - ~ / ~ -，将 - 变成 ~ + / - +
         :param cls: 类对象
         :param binary_operation_node: 二元运算节点
+        :param contain_unsigned_element 是否包含无符号元素（无负号，禁止增加 "-"）
         :return: 修改后的二元运算节点
         """
         _acceptable_operation_types: set[str] = {
@@ -271,17 +273,29 @@ function bitwiseModulo(uint256 _x, uint256 _y) internal pure returns (uint256) {
         transform_options: list[tuple[str, str] | None]
         if operator == "+":
             transform_options = [
-                ("-", "-"),
-                ("-", "~"),
-                ("~", "-"),
+                ("~", "~"),
                 None
             ]
+            if not contain_unsigned_element:
+                transform_options.extend(
+                    [
+                        ("-", "-"),
+                        ("-", "~"),
+                        ("~", "-"),
+                    ]
+                )
+            else:
+                pass
+
         else:  # operator == "-"
             transform_options = [
                 ("~", "+"),
-                ("-", "+"),
                 None
             ]
+            if not contain_unsigned_element:
+                transform_options.append(("-", "+"))
+            else:
+                pass
 
         chosen_operators = random.choice(transform_options)
 
@@ -306,12 +320,14 @@ function bitwiseModulo(uint256 _x, uint256 _y) internal pure returns (uint256) {
     def transform_number_literal_to_double_inverse(
             cls,
             literal_node: dict,
+            contain_unsigned_element: bool = True,
             max_wrap_times: int = 4
     ) -> dict:
         """
         转换数字字面量节点，添加双重逆运算
         :param cls: 类对象
         :param literal_node: 数字字面量节点
+        :param contain_unsigned_element 是否包含无符号元素（无负号，禁止增加 "-"）
         :param max_wrap_times: 最大包装层数
         :return: 修改后的数字字面量节点
         """
@@ -321,6 +337,7 @@ function bitwiseModulo(uint256 _x, uint256 _y) internal pure returns (uint256) {
 
         literal_node: dict = cls.wrap_mix_random_xor_and_unary(
             node = literal_node,
+            contain_unsigned_element = contain_unsigned_element,
             max_random_number = 255,
             max_wrap_times = max_wrap_times
         )
@@ -331,12 +348,14 @@ function bitwiseModulo(uint256 _x, uint256 _y) internal pure returns (uint256) {
     def transform_unary_operation_to_double_inverse(
             cls,
             unary_operation_node: dict,
+            contain_unsigned_element = True,
             max_wrap_times: int = 4
     ) -> dict:
         """
         转换一元运算节点，添加双重逆运算
         :param cls: 类对象
         :param unary_operation_node: 一元运算节点
+        :param contain_unsigned_element 是否包含无符号元素（无负号，禁止增加 "-"）
         :param max_wrap_times: 最大包装层数
         :return: 修改后的一元运算节点
         """
@@ -349,6 +368,7 @@ function bitwiseModulo(uint256 _x, uint256 _y) internal pure returns (uint256) {
         # 所有一元运算符都可以处理
         unary_operation_node: dict = cls.wrap_mix_random_xor_and_unary(
             node = sub_expression_node,
+            contain_unsigned_element = contain_unsigned_element,
             max_random_number = 255,
             max_wrap_times = max_wrap_times
         )
@@ -360,13 +380,15 @@ function bitwiseModulo(uint256 _x, uint256 _y) internal pure returns (uint256) {
             cls,
             binary_operation_node: dict,
             operand: str,
+            contain_unsigned_element: bool = True,
             max_wrap_times: int = 4
     ) -> dict:
         """
         转换二元运算节点的指定操作数，添加双重逆运算
         :param cls: 类对象
         :param binary_operation_node: 二元运算节点
-        :param operand: 指定操作数 ("~" 或者 "-")
+        :param contain_unsigned_element 是否包含无符号元素（无负号，禁止增加 "-"）
+        :param operand: 指定操作数 (+ - * / %)
         :param max_wrap_times: 最大包装层数
         :return:
         """
@@ -376,6 +398,7 @@ function bitwiseModulo(uint256 _x, uint256 _y) internal pure returns (uint256) {
 
         return cls.wrap_mix_random_xor_and_unary(
             node = binary_operation_node.get(operand),
+            contain_unsigned_element = contain_unsigned_element,
             max_random_number = 255,
             max_wrap_times = max_wrap_times
         )
@@ -384,12 +407,14 @@ function bitwiseModulo(uint256 _x, uint256 _y) internal pure returns (uint256) {
     def transform_index_access_to_double_inverse(
             cls,
             index_access_node: dict,
+            contain_unsigned_element: bool = True,
             max_wrap_times: int = 4
     ) -> dict:
         """
         转换索引访问节点的索引表达式，添加双重逆运算
         :param cls: 类对象
         :param index_access_node: 索引访问节点
+        :param contain_unsigned_element 是否包含无符号元素（无负号，禁止增加 "-"）
         :param max_wrap_times: 最大包装层数
         :return: 修改后的索引访问节点
         """
@@ -400,6 +425,7 @@ function bitwiseModulo(uint256 _x, uint256 _y) internal pure returns (uint256) {
         index_node: dict = index_access_node.get("index")
         index_access_node["index"] = cls.wrap_mix_random_xor_and_unary(
             node = index_node,
+            contain_unsigned_element = contain_unsigned_element,
             max_random_number = 255,
             max_wrap_times = max_wrap_times
         )
@@ -453,6 +479,7 @@ function bitwiseModulo(uint256 _x, uint256 _y) internal pure returns (uint256) {
     @staticmethod
     def __wrap_random_any_unary(
             node: dict,
+            contain_unsigned_element: bool = True,
             depth: int = 1
     ) -> dict:
         """
@@ -463,7 +490,11 @@ function bitwiseModulo(uint256 _x, uint256 _y) internal pure returns (uint256) {
         :param depth: 包装深度
         :return: 新的 UnaryOperation 节点
         """
-        ops = ["~", "-"]
+        ops = ["~"]
+        if not contain_unsigned_element:
+            ops.append("-")
+        else:
+            pass
 
         # randomly wrap unary operations for depth times
         for _ in range(depth):
@@ -473,7 +504,11 @@ function bitwiseModulo(uint256 _x, uint256 _y) internal pure returns (uint256) {
         return node
 
     @classmethod
-    def __wrap_random_unary(cls, node, max_wrap_times: int = 3) -> dict:
+    def __wrap_random_unary(cls,
+                            node: dict,
+                            contain_unsigned_element: bool = True,
+                            max_wrap_times: int = 3
+                            ) -> dict:
         """
         随机包裹任意一元运算符
          支持 ~ 和 -
@@ -484,7 +519,9 @@ function bitwiseModulo(uint256 _x, uint256 _y) internal pure returns (uint256) {
         """
         depth: int = random.randint(1, max_wrap_times) * 2 # 保证是偶数层
 
-        return cls.__wrap_random_any_unary(node, depth)
+        return cls.__wrap_random_any_unary(node,
+                                           contain_unsigned_element,
+                                           depth)
 
 
 
@@ -560,6 +597,7 @@ function bitwiseModulo(uint256 _x, uint256 _y) internal pure returns (uint256) {
     def wrap_mix_random_xor_and_unary(
             cls,
             node: dict,
+            contain_unsigned_element = True,
             max_random_number: int = 255,
             max_wrap_times: int = 3
     ) -> dict:
@@ -572,6 +610,7 @@ function bitwiseModulo(uint256 _x, uint256 _y) internal pure returns (uint256) {
         例如 max_wrap_times = 3，可能包装 0~3 次
         先随机选择包装次数，然后每次随机选择包装 xor 还是 unary
         :param node:  只能是 NumberLiteral
+        :param contain_unsigned_element 是否包含无符号元素（无负号，禁止增加 "-"）
         :param max_random_number:  随机数最大值
         :param max_wrap_times: 最大包装层数
         :return: 新的节点
@@ -584,7 +623,12 @@ function bitwiseModulo(uint256 _x, uint256 _y) internal pure returns (uint256) {
             if wrap_choice == "xor":
                 any_node = cls.__wrap_xor(node=any_node, max_random_number=max_random_number)
             else:  # wrap_choice == "unary"
-                any_node = cls.__wrap_random_unary(node=any_node, max_wrap_times=1)
+                any_node = cls.__wrap_random_unary(
+                    node=any_node,
+                    contain_unsigned_element=contain_unsigned_element,
+                    max_wrap_times=1
+                )
+
 
         return any_node
 
