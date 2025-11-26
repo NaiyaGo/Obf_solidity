@@ -11,6 +11,8 @@ from solidity_parser.ast import symtab, solnodes
 
 files_to_obfuscate = ['FloatingFunc.sol', 'TestContract.sol', 'TheContract.sol']
 project_dir = Path('./project/contracts')
+output_dir = Path('./obf_output')
+output_suffix = 'literal_obfuscated'
 
 vfs = filesys.VirtualFileSystem(project_dir, None, [])
 sym_builder = symtab.Builder2(vfs)
@@ -110,42 +112,46 @@ def modify_text_with_obfuscation(src_code, obfuscations):
 
     return current_source_code
 
+def obfuscate_code_literals(src_code, ast_nodes):
+    obfuscations = []
+
+    for node in ast_nodes:
+        if not node:
+            continue
+
+        string_literals = find_string_literals_in_ast(node)
+
+        for literal in string_literals:
+            if should_obfuscate_literal(literal):
+                obfuscated_expr = obfuscate_string_literal(literal)
+                obfuscations.append(Obfuscation(
+                    original_literal=literal,
+                    obfuscated_expr=obfuscated_expr,
+                    start_index=literal.start_buffer_index,
+                    end_index=literal.end_buffer_index
+                ))
+
+    code = modify_text_with_obfuscation(src_code, obfuscations)
+    return code
 
 def obfuscate_file(file_name):
-    try:
-        file_sym_info = sym_builder.process_or_find_from_base_dir(file_name)
-        loaded_src = vfs.sources[file_name]
+    """
+        Read a Solidity file, change strings to chars, and save to a new file.
+    """
+    file_sym_info = sym_builder.process_or_find_from_base_dir(file_name)
+    loaded_src = vfs.sources[file_name]
 
-        ast1_nodes, src_code = loaded_src.ast, loaded_src.contents
-
-        obfuscations = []
-
-        for node in ast1_nodes:
-            if not node:
-                continue
-
-            string_literals = find_string_literals_in_ast(node)
-
-            for literal in string_literals:
-                if should_obfuscate_literal(literal):
-                    obfuscated_expr = obfuscate_string_literal(literal)
-                    obfuscations.append(Obfuscation(
-                        original_literal=literal,
-                        obfuscated_expr=obfuscated_expr,
-                        start_index=literal.start_buffer_index,
-                        end_index=literal.end_buffer_index
-                    ))
-
-        if obfuscations:
-            obfuscated_code = modify_text_with_obfuscation(src_code, obfuscations)
-            print(f"// Obfuscated version of {file_name}")
-            print(obfuscated_code)
-        else:
-            print(f"No string literals found to obfuscate in {file_name}")
-    except Exception as e:
-        print(f"Error processing file {file_name}: {e}")
-        import traceback
-        traceback.print_exc()
+    ast1_nodes, src_code = loaded_src.ast, loaded_src.contents
+    obfuscated_code = obfuscate_code_literals(src_code, ast1_nodes)
+    
+    # Generate output filename
+    file_path = Path(file_name)
+    output_name = file_path.stem + output_suffix + file_path.suffix
+    output_path = output_dir / output_name
+    
+    # Write obfuscated code to file
+    with open(output_path, 'w') as f:
+        f.write(obfuscated_code)
 
 if __name__ == "__main__":
     random.seed(42)

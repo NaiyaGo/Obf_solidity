@@ -13,7 +13,7 @@ from typing import List, Tuple, Dict, Any, Optional, Iterable, Callable
 from solidity_parser import filesys
 from solidity_parser.ast import symtab, solnodes
 from obf_deadcode import iter_ast_roots, collect_top_level_slots, generate_dead_code, safe_func_name
-from obf_literal import find_string_literals_in_ast, should_obfuscate_literal, obfuscate_string_literal, modify_text_with_obfuscation, Obfuscation
+from obf_literal import obfuscate_code_literals
 from obf_controlflow import obfuscate_code_cf
 from obf_layout import Match, get_grammar_tree, collect_definitions, traverse
 
@@ -77,70 +77,22 @@ class StringLiteralPass(ObfuscationPass):
     name = "StringLiteral"
 
     def transform(self, ctx: ModuleContext):
-        density: float = float(self.params.get("density", 1.0))
+        """
+        直接复用用户脚本中的 obfuscate_code() 对函数体内的 ExprStmt 做 if/else 包装。
+        仅使用脚本中已有的函数/方法；不新增任何自定义工具。
+        """
+        density = float(self.params.get("density", 0.3))
+        ast_nodes = ctx.ast_root  # 与你脚本中 obfuscate_file 的 loaded_src.ast 一致
 
-        # 1) 用当前源码写到临时路径并重新解析（保证 AST 偏移与文本一致）
-        tmp_path = Path(".solp_tmp") / ctx.file_name
-        tmp_path.parent.mkdir(parents=True, exist_ok=True)
-        tmp_path.write_text(ctx.src, encoding="utf-8")
+        try:
+            new_src = obfuscate_code_literals(ctx.src, ast_nodes)
+        except Exception as e:
+            print(f"[{self.name}] ERROR {ctx.project_dir / ctx.file_name}: {e}")
+            return ctx.src, {"changed": False, "error": str(e), "density": density}
 
-        vfs = filesys.VirtualFileSystem(tmp_path.parent, None, [])
-        builder = symtab.Builder2(vfs)
-        builder.process_or_find_from_base_dir(tmp_path.name)
-        loaded = vfs.sources[tmp_path.name]
-        ast_root, src_code = loaded.ast, loaded.contents
-
-        # 2) 收集字符串字面量（复用你的函数），并按 (start,end) 去重
-        def _iter_roots(r):
-            if r is None: return []
-            if isinstance(r, (list, tuple)): return [x for x in r if x]
-            return [r]
-
-        literals = []
-        for root in _iter_roots(ast_root):
-            literals.extend(find_string_literals_in_ast(root))
-
-        candidates = [lit for lit in literals if should_obfuscate_literal(lit)]
-
-        seen = set()  # 去重集合
-        plan = []
-        for lit in candidates:
-            key = (lit.start_buffer_index, lit.end_buffer_index)
-            if key in seen:
-                continue
-            if random.random() <= density:
-                obf_expr = obfuscate_string_literal(lit)
-                plan.append(Obfuscation(
-                    original_literal=lit,
-                    obfuscated_expr=obf_expr,
-                    start_index=lit.start_buffer_index,
-                    end_index=lit.end_buffer_index
-                ))
-                seen.add(key)
-
-        print(f"[SCAN][{self.name}] {ctx.project_dir / ctx.file_name}: "
-              f"literals={len(literals)}, candidates={len(candidates)}, plan={len(plan)}, density={density}")
-
-        if not plan:
-            return ctx.src, {"changed": False, "literals": len(literals),
-                             "candidates": len(candidates), "replacements": 0}
-
-        # 3) 在“与 AST 一致的 src_code”上做替换，然后把新源码返回
-        new_src = modify_text_with_obfuscation(src_code, plan)
-
-        for obf in plan:
-            val = obf.original_literal.value
-            preview = (val[:37] + "...") if isinstance(val, str) and len(val) > 40 else val
-            print(f"[OBF][{self.name}] file={ctx.project_dir / ctx.file_name} "
-                  f"range=[{obf.start_index}:{obf.end_index}] literal={preview!r}")
-
-        return new_src, {
-            "changed": True,
-            "literals": len(literals),
-            "candidates": len(candidates),
-            "replacements": len(plan),
-        }
-
+        changed = (new_src != ctx.src)
+        print(f"[{self.name}] {ctx.project_dir / ctx.file_name}: density={density}, changed={changed}")
+        return new_src, {"changed": changed, "density": density}
 
 class ControlFlowPass(ObfuscationPass):
     name = "ControlFlow"
@@ -339,7 +291,7 @@ def main():
         passes.append(LayoutPass(shuffle=args.layout_shuffle))
 
     base_dir = Path(args.dir) # if args.dir else Path(".")
-    # 指定文件模式
+    # 指定文件
     if args.file:
         for file_name in [f.strip() for f in args.file.split(",") if f.strip()]:
             src_path = Path(file_name)
@@ -347,17 +299,15 @@ def main():
                 raise ValueError("指定的文件必须以 .sol 结尾")
             obf_src = run_pipeline_on_file(base_dir, src_path.name, passes)
             out_path = out_dir / src_path.name
-            # out_path.parent.mkdir(parents=True, exist_ok=True)
             out_path.write_text(obf_src, encoding="utf-8")
             print(f"[WRITE] {out_path}")
         return
 
-    # 目录模式
+    # 目录下所有文件
     for src_file in enumerate_sol_files(base_dir):
         rel = src_file.relative_to(base_dir)
         obf_src = run_pipeline_on_file(base_dir, src_file.name, passes)
         out_path = out_dir / rel
-        # out_path.parent.mkdir(parents=True, exist_ok=True)
         out_path.write_text(obf_src, encoding="utf-8")
         print(f"[WRITE] {out_path}")
 

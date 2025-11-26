@@ -13,7 +13,7 @@ from solidity_parser.ast import symtab, ast2builder, solnodes2, solnodes
 # this is user input
 files_to_obfuscate = ['FloatingFunc.sol', 'TestContract.sol', 'TheContract.sol']
 project_dir = Path('./project/contracts')
-output_dir = Path('./output')
+output_dir = Path('./obf_output')
 output_suffix = 'controlflow_obfuscated'
 
 # setup VFS
@@ -171,7 +171,7 @@ def obfuscate_code_cf(src_code, ast_nodes, density=0.3):
 
 def obfuscate_file(file_name):
     """
-        Read a Solidity file, obfuscate all names, and save to a new file.
+        Read a Solidity file, add if statement, and save to a new file.
     """
     # Process the file to get symbol information
     file_sym_info = sym_builder.process_or_find_from_base_dir(file_name)
