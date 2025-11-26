@@ -58,7 +58,7 @@ class ObfuscationPass:
 
     def transform(self, ctx: ModuleContext) -> Tuple[str, Dict[str, Any]]:
         """
-        输入 ModuleContext，输出 (new_src, metadata)。
+        输入 ModuleContext, 输出 (new_src, metadata)。
         这里默认不做修改，仅打印提示。
         """
         print(f"[{self.name}] {ctx.project_dir / ctx.file_name}: (noop, scaffold only)")
@@ -303,8 +303,8 @@ def enumerate_sol_files(base: Path) -> Iterable[Path]:
 
 def main():
     ap = argparse.ArgumentParser(description="Solidity Obfuscation Pipeline (scaffold)")
-    ap.add_argument("--file", type=str, default='./gptcomments/TheContract.sol', help="指定单个 .sol 文件")
-    ap.add_argument("--dir", type=str, default=None, help="指定目录（递归处理 .sol）")
+    ap.add_argument("--file", type=str, default='TheContract.sol', help="指定单个 .sol 文件")
+    ap.add_argument("--dir", type=str, default='./project/contracts', help="指定目录（递归处理 .sol)")
     ap.add_argument("--out", type=str, default="./obf_output", help="输出目录")
     ap.add_argument("--enable", type=str, default="cf, dead, literal", help="启用的 Pass 列表（逗号分隔）：cf,dead,layout")
     ap.add_argument("--seed", type=int, default=None)
@@ -338,12 +338,13 @@ def main():
     if "layout" in enable:
         passes.append(LayoutPass(shuffle=args.layout_shuffle))
 
+    base_dir = Path(args.dir) if args.dir else Path(".")
     # 单文件模式
     if args.file:
         src_path = Path(args.file)
         if not src_path.name.endswith(".sol"):
             raise ValueError("指定的文件必须以 .sol 结尾")
-        obf_src = run_pipeline_on_file(src_path.parent, src_path.name, passes)
+        obf_src = run_pipeline_on_file(base_dir, src_path.name, passes)
         out_path = out_dir / src_path.name
         out_path.parent.mkdir(parents=True, exist_ok=True)
         out_path.write_text(obf_src, encoding="utf-8")
@@ -351,10 +352,9 @@ def main():
         return
 
     # 目录模式
-    base_dir = Path(args.dir)
     for src_file in enumerate_sol_files(base_dir):
         rel = src_file.relative_to(base_dir)
-        obf_src = run_pipeline_on_file(src_file.parent, src_file.name, passes)
+        obf_src = run_pipeline_on_file(base_dir, src_file.name, passes)
         out_path = out_dir / rel
         out_path.parent.mkdir(parents=True, exist_ok=True)
         out_path.write_text(obf_src, encoding="utf-8")
