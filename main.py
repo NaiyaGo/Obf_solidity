@@ -36,7 +36,7 @@ class ModuleContext:
     def rebuild(self, new_src: str) -> None:
         """
         将 new_src 作为当前源码，并在需要时重建 AST。
-        注意：这里仅更新 self.src；如果你需要“变更后 AST”，
+        注意：这里仅更新 self.src;如果你需要“变更后 AST”,
         建议在实际实现时重新构建 VFS/符号表并赋值给 ast_root。
         """
         self.src = new_src
@@ -303,10 +303,10 @@ def enumerate_sol_files(base: Path) -> Iterable[Path]:
 
 def main():
     ap = argparse.ArgumentParser(description="Solidity Obfuscation Pipeline (scaffold)")
-    ap.add_argument("--file", type=str, default='TheContract.sol', help="指定单个 .sol 文件")
-    ap.add_argument("--dir", type=str, default='./project/contracts', help="指定目录（递归处理 .sol)")
+    ap.add_argument("--file", type=str, default=None, help="指定.sol 文件, 以,分割")
+    ap.add_argument("--dir", type=str, default=None, help="指定目录（递归处理 .sol)")
     ap.add_argument("--out", type=str, default="./obf_output", help="输出目录")
-    ap.add_argument("--enable", type=str, default="cf, dead, literal", help="启用的 Pass 列表（逗号分隔）：cf,dead,layout")
+    ap.add_argument("--enable", type=str, default="cf, dead, literal", help="启用的 Pass 列表(逗号分隔) cf,dead,layout")
     ap.add_argument("--seed", type=int, default=None)
     
     ap.add_argument("--cf-density", type=float, default=0.5, help="ControlFlow 注入密度（占位）")
@@ -315,7 +315,7 @@ def main():
     ap.add_argument("--layout-shuffle", type=float, default=0.0, help="Layout 重排强度（占位）")
     args = ap.parse_args()
 
-    if not args.file and not args.dir:
+    if not args.dir:
         raise ValueError("必须指定 --file 或 --dir")
 
     if args.seed is not None:
@@ -338,17 +338,18 @@ def main():
     if "layout" in enable:
         passes.append(LayoutPass(shuffle=args.layout_shuffle))
 
-    base_dir = Path(args.dir) if args.dir else Path(".")
-    # 单文件模式
+    base_dir = Path(args.dir) # if args.dir else Path(".")
+    # 指定文件模式
     if args.file:
-        src_path = Path(args.file)
-        if not src_path.name.endswith(".sol"):
-            raise ValueError("指定的文件必须以 .sol 结尾")
-        obf_src = run_pipeline_on_file(base_dir, src_path.name, passes)
-        out_path = out_dir / src_path.name
-        out_path.parent.mkdir(parents=True, exist_ok=True)
-        out_path.write_text(obf_src, encoding="utf-8")
-        print(f"[WRITE] {out_path}")
+        for file_name in [f.strip() for f in args.file.split(",") if f.strip()]:
+            src_path = Path(file_name)
+            if not src_path.name.endswith(".sol"):
+                raise ValueError("指定的文件必须以 .sol 结尾")
+            obf_src = run_pipeline_on_file(base_dir, src_path.name, passes)
+            out_path = out_dir / src_path.name
+            # out_path.parent.mkdir(parents=True, exist_ok=True)
+            out_path.write_text(obf_src, encoding="utf-8")
+            print(f"[WRITE] {out_path}")
         return
 
     # 目录模式
@@ -356,7 +357,7 @@ def main():
         rel = src_file.relative_to(base_dir)
         obf_src = run_pipeline_on_file(base_dir, src_file.name, passes)
         out_path = out_dir / rel
-        out_path.parent.mkdir(parents=True, exist_ok=True)
+        # out_path.parent.mkdir(parents=True, exist_ok=True)
         out_path.write_text(obf_src, encoding="utf-8")
         print(f"[WRITE] {out_path}")
 

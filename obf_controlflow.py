@@ -11,7 +11,7 @@ from solidity_parser import filesys
 from solidity_parser.ast import symtab, ast2builder, solnodes2, solnodes
 
 # this is user input
-files_to_annotate = ['FloatingFunc.sol', 'TestContract.sol', 'TheContract.sol']
+files_to_obfuscate = ['FloatingFunc.sol', 'TestContract.sol', 'TheContract.sol']
 project_dir = Path('./project/contracts')
 output_dir = Path('./output')
 output_suffix = 'controlflow_obfuscated'
@@ -193,5 +193,5 @@ def obfuscate_file(file_name):
 
 # Run obfuscation
 if __name__ == "__main__":
-    for f in files_to_annotate:
+    for f in files_to_obfuscate:
         obfuscate_file(f)

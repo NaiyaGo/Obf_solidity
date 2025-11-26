@@ -9,7 +9,7 @@ from typing import List
 from solidity_parser import filesys
 from solidity_parser.ast import symtab, solnodes
 
-files_to_annotate = ['FloatingFunc.sol', 'TestContract.sol', 'TheContract.sol']
+files_to_obfuscate = ['FloatingFunc.sol', 'TestContract.sol', 'TheContract.sol']
 project_dir = Path('./project/contracts')
 
 vfs = filesys.VirtualFileSystem(project_dir, None, [])
