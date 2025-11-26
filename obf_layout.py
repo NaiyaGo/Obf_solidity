@@ -175,6 +175,8 @@ def _process_member_chain(node: dict[str, Any]) -> int:
 def _handle_named_node(node: dict[str, Any]) -> None:
     node_type = node.get("type")
 
+
+
     if node_type == "FunctionDefinition" and node.get("name"):
         old_name = node["name"]
         new_name = rename(old_name)
@@ -223,12 +225,22 @@ def _handle_named_node(node: dict[str, Any]) -> None:
         add2Log(new_name, start, end + 1)
         return
 
-    if node_type == "Identifier" and node.get("name") and node.get("name") not in predefined_keywords and node.get("range"):
+    if node_type == "Identifier" and node.get("name") and node.get("name") not in predefined_keywords :
         start, end = node["range"]
         new_name = rename(node["name"])
         add2Log(new_name, start, end+1 )
         return
-
+    
+    if node_type =="ModifierInvocation" and node.get("name") and node.get("name") not in predefined_keywords:
+        old_name = node["name"]
+        new_name = rename(old_name)
+        start, end = node["range"]
+        for i in range(start,end+1):
+            if(text[i]=='(' or text[i]==' '):
+                end=i
+                break
+        add2Log(new_name, start, end)
+        return
     
 
 
@@ -282,7 +294,7 @@ for elem in change_log:
 if __name__ == '__main__':
     #print("可混淆标识符：", obfuscatable)
 
-    #print(json.dumps(solidity_ast, indent=2))
-
+    print(json.dumps(solidity_ast, indent=2))
+    print(text[1674:1692])
     #print("========obfuscated code========")
     print(out_put)
