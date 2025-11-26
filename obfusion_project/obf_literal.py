@@ -10,7 +10,7 @@ from solidity_parser import filesys
 from solidity_parser.ast import symtab, solnodes
 
 files_to_obfuscate = ['FloatingFunc.sol', 'TestContract.sol', 'TheContract.sol']
-project_dir = Path('./project/contracts')
+project_dir = Path('solidity_project/contracts')
 output_dir = Path('./obf_output')
 output_suffix = 'literal_obfuscated'
 

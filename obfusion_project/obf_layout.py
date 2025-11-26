@@ -33,7 +33,7 @@ solidity_ast: Any = json.loads(solidity_ast_json_str)
 #print(json.dumps(solidity_ast, indent=2))
 
 
-test_path = Path("./project")
+test_path = Path("../solidity_project")
 test_path = test_path.joinpath("contracts", "TestContract.sol")
 with open(test_path, "r", encoding="utf-8", newline='') as f:
     

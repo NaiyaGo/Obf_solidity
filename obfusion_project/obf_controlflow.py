@@ -12,7 +12,7 @@ from solidity_parser.ast import symtab, ast2builder, solnodes2, solnodes
 
 # this is user input
 files_to_obfuscate = ['FloatingFunc.sol', 'TestContract.sol', 'TheContract.sol']
-project_dir = Path('./project/contracts')
+project_dir = Path('solidity_project/contracts')
 output_dir = Path('./obf_output')
 output_suffix = 'controlflow_obfuscated'
 
