@@ -303,7 +303,7 @@ def enumerate_sol_files(base: Path) -> Iterable[Path]:
 
 def main():
     ap = argparse.ArgumentParser(description="Solidity Obfuscation Pipeline (scaffold)")
-    ap.add_argument("--file", type=str, default='./gptcomments/TheContract.sol', help="指定单个 .sol 文件")
+    ap.add_argument("--file", type=str, default='./project/contracts/TheContract.sol', help="指定单个 .sol 文件") # './gptcomments/TheContract.sol'
     ap.add_argument("--dir", type=str, default=None, help="指定目录（递归处理 .sol）")
     ap.add_argument("--out", type=str, default="./obf_output", help="输出目录")
     ap.add_argument("--enable", type=str, default="cf, dead, literal", help="启用的 Pass 列表（逗号分隔）：cf,dead,layout")
@@ -322,8 +322,8 @@ def main():
         random.seed(args.seed)
 
     out_dir = Path(args.out)
-    if out_dir.exists():
-        shutil.rmtree(out_dir)
+    # if out_dir.exists():
+    #     shutil.rmtree(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
     # 组装 Pass 列表（不实现，仅占位）
