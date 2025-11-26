@@ -144,7 +144,7 @@ def modify_text(src_code, modifications):
 
     return current_source_code
 
-def obfuscate_code(src_code, ast_nodes, density=0.3):
+def obfuscate_code_cf(src_code, ast_nodes, density=0.3):
     """
         For all normal statement, random choose some to add if with true condition
         :src_code: original code
@@ -177,7 +177,7 @@ def obfuscate_file(file_name):
     ast_nodes = loaded_src.ast
     src_code = loaded_src.contents
 
-    obfuscated_code = obfuscate_code(src_code, ast_nodes)
+    obfuscated_code = obfuscate_code_cf(src_code, ast_nodes)
 
     # Generate output filename
     file_path = Path(file_name)
@@ -189,5 +189,6 @@ def obfuscate_file(file_name):
         f.write(obfuscated_code)
 
 # Run obfuscation
-for f in files_to_annotate:
-    obfuscate_file(f)
+if __name__ == "__main__":
+    for f in files_to_annotate:
+        obfuscate_file(f)

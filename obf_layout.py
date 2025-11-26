@@ -14,13 +14,15 @@ import os
 from typing import Any, Optional, ClassVar, Final
 import random
 
-def get_grammar_tree() -> str:
+def get_grammar_tree(file_path) -> str:
     # 调用 Node.js 脚本
     result = subprocess.run(
-        ["node", "./getGrammarTree.js"],
+        ["node", "./getGrammarTree.js", file_path],
         capture_output=True,
         text=True
     )
+    if result.returncode != 0 and result.stderr:
+        raise RuntimeError(result.stderr)
 
     return result.stdout
 
@@ -58,11 +60,6 @@ predefined_keywords = {
 #单文件需要先找到导入的外来包来确保不混淆其接口调用方法和模块名。
 
 import re
-
-
-
-
-
 
 
 #print("导入的外来包别名和符号：", results)
@@ -255,20 +252,21 @@ def traverse(node, inside_member=False) -> None:
 
 
 
-collect_definitions(solidity_ast)
 
-
-
-traverse(solidity_ast)
-
-out_put:str=str(text)
-for elem in change_log[::-1]:
-        print(elem,end="\t")
-        print(text[elem["start"]:elem["end"]]+"\t"+str(elem["end"]-elem["start"]))
-        out_put=out_put[:elem["start"]]+elem["newName"]+out_put[elem["end"]:]
 
 
 if __name__ == '__main__':
+    collect_definitions(solidity_ast)
+
+
+
+    traverse(solidity_ast)
+
+    out_put:str=str(text)
+    for elem in change_log[::-1]:
+            print(elem,end="\t")
+            print(text[elem["start"]:elem["end"]]+"\t"+str(elem["end"]-elem["start"]))
+            out_put=out_put[:elem["start"]]+elem["newName"]+out_put[elem["end"]:]
     print("可混淆标识符：", obfuscatable)
     
 

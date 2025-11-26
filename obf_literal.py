@@ -153,8 +153,9 @@ def obfuscate_file(file_name):
         import traceback
         traceback.print_exc()
 
+if __name__ == "__main__":
 
-random.seed(42)
+    random.seed(42)
 
-for f in files_to_obfuscate:
-    obfuscate_file(f)
+    for f in files_to_obfuscate:
+        obfuscate_file(f)
