@@ -30,7 +30,7 @@ function bitwiseSubtractByAdd(uint256 _x, uint256 _y) internal pure returns (uin
 
     pre_defined_bitwise_subtractor: Final[str] = """
 function bitwiseSubtract(uint256 _x, uint256 _y) internal pure returns (uint256) {
-    _x = -_x;
+    _x = ~_x;
     // 用位运算模拟加法器
     while (_y != 0) {
         uint256 __carry__ = (_x & _y) << 1;
@@ -65,12 +65,12 @@ function bitwiseDivide(uint256 _x, uint256 _y) internal pure returns (uint256) {
         uint256 tempY = _y;
         uint256 multiple = 1;
 
-        while (bitwiseSub(remainder, tempY) >= _y) {
+        while (bitwiseSubtract(remainder, tempY) >= _y) {
             tempY <<= 1;
             multiple <<= 1;
         }
 
-        remainder = bitwiseSub(remainder, tempY);
+        remainder = bitwiseSubtract(remainder, tempY);
         quotient = bitwiseAdd(quotient, multiple);
     }
 
@@ -83,7 +83,7 @@ function bitwiseModulo(uint256 _x, uint256 _y) internal pure returns (uint256) {
     uint256 remainder = _x;
 
     while (remainder >= _y) {
-        remainder = bitwiseSub(remainder, _y);
+        remainder = bitwiseSubtract(remainder, _y);
     }
 
     return remainder;

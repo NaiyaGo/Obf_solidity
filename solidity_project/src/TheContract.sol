@@ -9,7 +9,7 @@ contract OperationsContract {
         data.push(30);
     }
 
-    function mathOperations(uint256 _num1, uint256 _num2) external pure returns (uint256 result) {
+    function mathOperations(uint256 _num1, uint256 _num2) external pure returns (uint256 result) { 
         result = _num1 + _num2;
         result -= 5;
         result *= 2;

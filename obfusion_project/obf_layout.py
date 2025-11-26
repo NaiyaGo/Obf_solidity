@@ -1,162 +1,109 @@
-# makes this file easily runnable in Pycharm
+# layout_obfuscate_runtime.py
+# 无硬编码版本：通过 get_grammar_tree(file_path) 解析 AST，
+# 用传入的 src 做正则定位与文本替换；返回 (new_src, stats)
 
-
+from typing import Any
 from pathlib import Path
-from dataclasses import dataclass
-
-from solidity_parser import filesys
-from solidity_parser.ast import symtab, solnodes
-
-
-import json
 import subprocess
-import os
-from typing import Any, Optional, ClassVar, Final
-import random
+import json
+import re
+import uuid
 
-def get_grammar_tree() -> str:
-    # 调用 Node.js 脚本
-    result = subprocess.run(
-        ["node", "./getGrammarTree.js"],
+# -------------------- JS 桥接 --------------------
+def get_grammar_tree(file_path: str) -> str:
+    """调用 Node 侧 getGrammarTree.js（需支持 argv[2] 指定文件路径）。"""
+    res = subprocess.run(
+        ["node", "./obfusion_project/getGrammarTree.js", file_path],
         capture_output=True,
         text=True
     )
+    if res.returncode != 0:
+        raise RuntimeError(res.stderr or "getGrammarTree.js failed")
+    return res.stdout
 
-    return result.stdout
-
-
-
-solidity_ast_json_str: str = get_grammar_tree()
-
-# 解析 JSON
-solidity_ast: Any = json.loads(solidity_ast_json_str)
-#print(json.dumps(solidity_ast, indent=2))
-
-
-test_path = Path("../solidity_project")
-test_path = test_path.joinpath("contracts", "TestContract.sol")
-with open(test_path, "r", encoding="utf-8", newline='') as f:
-    
-    text=f.read()
-f.close()
-#print(text)
+# -------------------- 你原脚本里的全局对象（保留） --------------------
 predefined_keywords = {
-        'pragma', 'solidity', 'contract', 'function', 'public', 'private', 'internal',
-        'external', 'pure', 'view', 'payable', 'returns', 'return', 'if', 'else',
-        'for', 'while', 'do', 'break', 'continue', 'uint', 'uint256', 'uint8',
-        'int', 'int256', 'bool', 'address', 'string', 'bytes', 'bytes32',
-        'true', 'false', 'require', 'assert', 'revert', 'emit', 'event',
-        'modifier', 'constructor', 'fallback', 'receive', 'override', 'virtual',
-        'abstract', 'interface', 'library', 'is', 'new', 'delete', 'this',
-        'msg', 'block', 'tx', 'now', 'revert', 'selfdestruct', 'suicide',
-        'abi', 'encodePacked', 'encode', 'encodeWithSelector', 'encodeWithSignature',
-        'memory', 'storage', 'calldata', 'indexed', 'anonymous', 'constant',
-        'immutable', 'transparent', 'import', 'as', 'from','_'
-    }
-
-
-#单文件需要先找到导入的外来包来确保不混淆其接口调用方法和模块名。
-
-import re
-
-
-
-
-
-
-
-#print("导入的外来包别名和符号：", results)
-
-
-
-
-#print("保护的标识符：", predefined_keywords)
-
-
+    'pragma', 'solidity', 'contract', 'function', 'public', 'private', 'internal',
+    'external', 'pure', 'view', 'payable', 'returns', 'return', 'if', 'else',
+    'for', 'while', 'do', 'break', 'continue', 'uint', 'uint256', 'uint8',
+    'int', 'int256', 'bool', 'address', 'string', 'bytes', 'bytes32',
+    'true', 'false', 'require', 'assert', 'revert', 'emit', 'event',
+    'modifier', 'constructor', 'fallback', 'receive', 'override', 'virtual',
+    'abstract', 'interface', 'library', 'is', 'new', 'delete', 'this',
+    'msg', 'block', 'tx', 'now', 'revert', 'selfdestruct', 'suicide',
+    'abi', 'encodePacked', 'encode', 'encodeWithSelector', 'encodeWithSignature',
+    'memory', 'storage', 'calldata', 'indexed', 'anonymous', 'constant',
+    'immutable', 'transparent', 'import', 'as', 'from', '_', 'push'
+}
 
 class Match:
-    content=text
+    # 注意：运行时会把 content 设置为当前 src
+    content: str = ""
 
     @classmethod
-    def match_concretefunction(cls,funcName):
+    def match_concretefunction(cls, funcName):
         pattern = re.compile(rf'\bfunction\s+(?P<name>{re.escape(funcName)})\s*(?=\()', re.ASCII)
-        matches= pattern.search(cls.content)
-        return (matches.span("name")[0], matches.span("name")[1])
-
-
-    @classmethod
-    def match_concreteContract(cls,contractName):
-        pattern_contract = re.compile(rf'\bcontract\s+(?P<name>{re.escape(contractName)})\s*\b', re.ASCII)
-        matches= pattern_contract.search(cls.content)
-        return (matches.span("name")[0], matches.span("name")[1])
-
+        m = pattern.search(cls.content)
+        return (m.span("name")[0], m.span("name")[1])
 
     @classmethod
-    def match_concreteStruct(cls,structName):
-        pattern_struct = re.compile(rf'\bstruct\s+(?P<name>{re.escape(structName)})\s*\b', re.ASCII)
-        matches= pattern_struct.search(cls.content)
-        return (matches.span("name")[0], matches.span("name")[1])
-
-
-    @classmethod
-    def match_concreteEnum(cls,enumName):
-        pattern_enum = re.compile(rf'\benum\s+(?P<name>{re.escape(enumName)})\s*\b', re.ASCII)
-        matches= pattern_enum.search(cls.content)
-        return (matches.span("name")[0], matches.span("name")[1])
+    def match_concreteContract(cls, contractName):
+        pattern = re.compile(rf'\bcontract\s+(?P<name>{re.escape(contractName)})\s*\b', re.ASCII)
+        m = pattern.search(cls.content)
+        return (m.span("name")[0], m.span("name")[1])
 
     @classmethod
-    def match_concreteModifier(cls,modifierName):
-        pattern_var = re.compile(rf'\bmodifier\s+(?P<name>{re.escape(modifierName)})\s*(?=\(|\{{)', re.ASCII)
-        matches= pattern_var.search(cls.content)
-        return (matches.span("name")[0], matches.span("name")[1])
+    def match_concreteStruct(cls, structName):
+        pattern = re.compile(rf'\bstruct\s+(?P<name>{re.escape(structName)})\s*\b', re.ASCII)
+        m = pattern.search(cls.content)
+        return (m.span("name")[0], m.span("name")[1])
 
+    @classmethod
+    def match_concreteEnum(cls, enumName):
+        pattern = re.compile(rf'\benum\s+(?P<name>{re.escape(enumName)})\s*\b', re.ASCII)
+        m = pattern.search(cls.content)
+        return (m.span("name")[0], m.span("name")[1])
+
+    @classmethod
+    def match_concreteModifier(cls, modifierName):
+        pattern = re.compile(rf'\bmodifier\s+(?P<name>{re.escape(modifierName)})\s*(?=\(|\{{)', re.ASCII)
+        m = pattern.search(cls.content)
+        return (m.span("name")[0], m.span("name")[1])
+
+# 这些集合在每次调用入口时会被重置
 obfuscatable: set[str] = set()
+mapping: dict[str, str] = {}
+change_log: list[dict] = []
 
 def collect_definitions(node: Any) -> None:
     if isinstance(node, dict):
-        node_type = node.get("type")
-        if node_type in {"FunctionDefinition", "ModifierDefinition", "StructDefinition",
-                         "ContractDefinition", "EnumDefinition"} and node.get("name"):
+        t = node.get("type")
+        if t in {"FunctionDefinition", "ModifierDefinition", "StructDefinition",
+                 "ContractDefinition", "EnumDefinition"} and node.get("name"):
             obfuscatable.add(node["name"])
-        elif node_type == "VariableDeclaration" and node.get("name"):
+        elif t == "VariableDeclaration" and node.get("name"):
             obfuscatable.add(node["name"])
-        for child in node.values():
-            collect_definitions(child)
+        for v in node.values():
+            collect_definitions(v)
     elif isinstance(node, list):
-        for child in node:
-            collect_definitions(child)
+        for v in node:
+            collect_definitions(v)
 
-import uuid
-mapping: dict[str, str] = {}
 def rename(name: str) -> str:
     if name not in mapping:
         mapping[name] = f"obf_{uuid.uuid4().hex}"
     return mapping[name]
 
-change_log=[]
-
-'''
-declaration range
-deinition range{function modifier struct contract enum variable}
-usage range
-
-'''
-
-
-def add2Log(newName:str,start:int,end:int):
-    change_log.append({
-        "newName":newName,
-        "start":start,
-        "end":end
-    })
+def add2Log(newName: str, start: int, end: int):
+    change_log.append({"newName": newName, "start": start, "end": end})
 
 def _process_member_chain(node: dict[str, Any]) -> int:
-    """Rename every segment in a nested MemberAccess chain once."""
-    if node.get("type") == "Identifier" and "name" in node:
+    # 重命名链式 MemberAccess，每个段只处理一次
+    if node.get("type") == "Identifier" and "name" in node and node["name"] not in predefined_keywords:
         start, end = node["range"]
         new_name = rename(node["name"])
         add2Log(new_name, start, end + 1)
-        return end + 2  # skip following dot
+        return end + 2
 
     expression = node.get("expression")
     if isinstance(expression, dict):
@@ -171,130 +118,130 @@ def _process_member_chain(node: dict[str, Any]) -> int:
         add2Log(new_name, current_start, chain_end + 1)
     return chain_end + 2
 
-
 def _handle_named_node(node: dict[str, Any]) -> None:
-    node_type = node.get("type")
+    t = node.get("type")
 
+    if t == "FunctionDefinition" and node.get("name") and node.get("name") not in predefined_keywords:
+        old = node["name"]
+        new = rename(old)
+        s, e = Match.match_concretefunction(old)
+        add2Log(new, s, e); return
 
+    if t == "ModifierDefinition" and node.get("name") and node.get("name") not in predefined_keywords:
+        old = node["name"]
+        new = rename(old)
+        s, e = Match.match_concreteModifier(old)
+        add2Log(new, s, e); return
 
-    if node_type == "FunctionDefinition" and node.get("name"):
-        old_name = node["name"]
-        new_name = rename(old_name)
-        start, end = Match.match_concretefunction(old_name)
-        add2Log(new_name, start, end)
-        return
+    if t == "StructDefinition" and node.get("name") and node.get("name") not in predefined_keywords:
+        old = node["name"]
+        new = rename(old)
+        s, e = Match.match_concreteStruct(old)
+        add2Log(new, s, e); return
 
-    if node_type == "ModifierDefinition" and node.get("name"):
-        old_name = node["name"]
-        new_name = rename(old_name)
-        start, end = Match.match_concreteModifier(old_name)
-        add2Log(new_name, start, end)
-        return
+    if t == "ContractDefinition" and node.get("name") and node.get("name") not in predefined_keywords:
+        old = node["name"]
+        new = rename(old)
+        s, e = Match.match_concreteContract(old)
+        add2Log(new, s, e); return
 
-    if node_type == "StructDefinition" and node.get("name"):
-        old_name = node["name"]
-        new_name = rename(old_name)
-        start, end = Match.match_concreteStruct(old_name)
-        add2Log(new_name, start, end)
-        return
+    if t == "EnumDefinition" and node.get("name") and node.get("name") not in predefined_keywords:
+        old = node["name"]
+        new = rename(old)
+        s, e = Match.match_concreteEnum(old)
+        add2Log(new, s, e); return
 
-    if node_type == "ContractDefinition" and node.get("name"):
-        old_name = node["name"]
-        new_name = rename(old_name)
-        start, end = Match.match_concreteContract(old_name)
-        add2Log(new_name, start, end)
-        return
+    if t == "UserDefinedTypeName" and node.get("name") and node.get("range") and node.get("name") not in predefined_keywords:
+        s, e = node["range"]
+        new = rename(node["name"])
+        add2Log(new, s, e + 1); return
 
-    if node_type == "EnumDefinition" and node.get("name"):
-        old_name = node["name"]
-        new_name = rename(old_name)
-        start, end = Match.match_concreteEnum(old_name)
-        add2Log(new_name, start, end)
-        return
+    if t == "UserDefinedTypeName" and node.get("namePath") and node.get("range") and node.get("namePath") not in predefined_keywords:
+        s, e = node["range"]
+        new = rename(node["namePath"])
+        add2Log(new, s, e + 1); return
 
+    if t == "Identifier" and node.get("name") and node.get("name") not in predefined_keywords:
+        s, e = node["range"]
+        new = rename(node["name"])
+        add2Log(new, s, e + 1); return
 
-    if node_type == "UserDefinedTypeName" and node.get("name") and node.get("range"):
-        start, end = node["range"]
-        new_name = rename(node["name"])
-        add2Log(new_name, start, end + 1)
-        return
-
-    if node_type == "UserDefinedTypeName" and node.get("namePath") and node.get("range"):
-        start, end = node["range"]
-        new_name = rename(node["namePath"])
-        add2Log(new_name, start, end + 1)
-        return
-
-    if node_type == "Identifier" and node.get("name") and node.get("name") not in predefined_keywords :
-        start, end = node["range"]
-        new_name = rename(node["name"])
-        add2Log(new_name, start, end+1 )
-        return
-    
-    if node_type =="ModifierInvocation" and node.get("name") and node.get("name") not in predefined_keywords:
-        old_name = node["name"]
-        new_name = rename(old_name)
-        start, end = node["range"]
-        for i in range(start,end+1):
-            if(text[i]=='(' or text[i]==' '):
-                end=i
+    if t == "ModifierInvocation" and node.get("name") and node.get("name") not in predefined_keywords:
+        old = node["name"]
+        new = rename(old)
+        s, e = node["range"]
+        # 截到 '(' 或空格为止
+        for i in range(s, e + 1):
+            if (Match.content[i] == '(') or (Match.content[i] == ' '):
+                e = i
                 break
-        add2Log(new_name, start, end)
-        return
-    
+        add2Log(new, s, e); return
 
-
-def traverse(node, inside_member=False) -> None:
+def traverse(node: Any, inside_member: bool = False) -> None:
     if inside_member:
         return
-
     if isinstance(node, dict):
-        node_type = node.get("type")
-
-        if node_type == "MemberAccess":
+        t = node.get("type")
+        if t == "MemberAccess":
             if not inside_member:
                 _process_member_chain(node)
             traverse(node.get("expression"), inside_member=True)
             return
-
         _handle_named_node(node)
-
-        for child in node.values():
-            traverse(child, inside_member=False)
+        for v in node.values():
+            traverse(v, inside_member=False)
     elif isinstance(node, list):
-        for child in node:
-            traverse(child, inside_member)
+        for v in node:
+            traverse(v, inside_member)
 
+def _apply_changes(src: str) -> str:
+    """把 change_log 按 start 逆序应用到 src。"""
+    out = src
+    change_log.sort(key=lambda item: item["start"], reverse=True)
+    for c in change_log:
+        out = out[:c["start"]] + c["newName"] + out[c["end"]:]
+    return out
 
+# -------------------- 入口：无硬编码版本 --------------------
+def layout_obfuscate(src: str, file_path: str) -> tuple[str, dict]:
+    """
+    - src: 当前要混淆的源码（字符串）
+    - file_path: 让 Node 解析的“同一份源”的磁盘路径（由外部保证 file_path 内容与 src 一致）
+      * 若你在 pipeline 里已经把 src 写到了一个临时路径 tmp.sol，则把 tmp.sol 的绝对路径传进来即可
+    """
+    # 1) 重置全局状态
+    obfuscatable.clear()
+    mapping.clear()
+    change_log.clear()
+    Match.content = src  # 供正则定位
 
-collect_definitions(solidity_ast)
+    # 2) 解析 AST(JSON)
+    ast_json = get_grammar_tree(file_path)
+    solidity_ast = json.loads(ast_json)
 
+    # 3) 收集与遍历（与你原脚本一致）
+    collect_definitions(solidity_ast)
+    traverse(solidity_ast)
 
+    # 4) 应用替换
+    new_src = _apply_changes(src)
+    stats = {
+        "changed": new_src != src,
+        "renamed": len(change_log),
+        "obfuscatable": len(obfuscatable),
+    }
+    return new_src, stats
 
-traverse(solidity_ast)
-'''for elem in change_log:
-    print(text[elem["start"]:elem["end"]]+"\t"+str(elem["start"])+"\t"+str(elem["end"]))'''
-out_put:str=str(text)
-change_log.sort(key=lambda item: item["start"], reverse=True)
+# -------------------- 可选：本地测试 CLI --------------------
+if __name__ == "__main__":
+    import argparse
+    ap = argparse.ArgumentParser(description="Layout obfuscation (no hardcode)")
+    ap.add_argument("--file", required=True, help="要混淆的 .sol 文件路径（将传给 getGrammarTree.js）")
+    args = ap.parse_args()
 
-
-for elem in change_log:
-        '''        
-        print(elem,end="\t")
-        print("|"+text[elem["start"]:elem["end"]]+"\t"+str(elem["end"]-elem["start"]))
-        
-        print(repr("left|"+out_put[elem["start"]-20:elem["start"]]))
-        print(repr("middle|"+elem["newName"]))
-        print(repr("right|"+out_put[elem["end"]:elem["end"]+20]))
-        print(repr("right-1|"+out_put[elem["end"]-1:elem["end"]+19]))
-        '''
-        out_put=out_put[:elem["start"]]+elem["newName"]+out_put[elem["end"]:]
-
-
-if __name__ == '__main__':
-    print("可混淆标识符：", obfuscatable)
-
-    print(json.dumps(solidity_ast, indent=2))
-    #print(text[1674:1692])
-    #print("========obfuscated code========")
-    print(out_put)
+    p = Path(args.file)
+    src_text = p.read_text(encoding="utf-8")
+    out_text, info = layout_obfuscate(src_text, str(p))
+    print("stats:", info)
+    print("========obfuscated code========")
+    print(out_text)
