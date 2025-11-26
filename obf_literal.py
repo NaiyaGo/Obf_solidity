@@ -9,8 +9,8 @@ from typing import List
 from solidity_parser import filesys
 from solidity_parser.ast import symtab, solnodes
 
-files_to_obfuscate = ['TheContract.sol']
-project_dir = Path('./gptcomments')
+files_to_obfuscate = ['FloatingFunc.sol', 'TestContract.sol', 'TheContract.sol']
+project_dir = Path('./project/contracts')
 
 vfs = filesys.VirtualFileSystem(project_dir, None, [])
 sym_builder = symtab.Builder2(vfs)
@@ -18,7 +18,6 @@ sym_builder = symtab.Builder2(vfs)
 
 def should_obfuscate_literal(literal):
     return isinstance(literal.value, str) and len(literal.value) > 1
-
 
 @dataclass
 class Obfuscation:
@@ -69,7 +68,6 @@ import re
 
 INDENT_REG = re.compile(r'[ \t]+$')
 
-
 def get_trailing_whitespace(s):
     match = INDENT_REG.search(s)
     if match:
@@ -77,26 +75,22 @@ def get_trailing_whitespace(s):
     else:
         return ""
 
-
 LINE_REG = re.compile("\r?\n")
-
 
 def indent_by(s, indentation):
     return ("\n" + indentation).join(LINE_REG.split(s))
-
 
 def generate_obfuscated_code(obfuscated_expr):
     if isinstance(obfuscated_expr, solnodes.BinaryOp):
         left_code = generate_obfuscated_code(obfuscated_expr.left)
         right_code = generate_obfuscated_code(obfuscated_expr.right)
-        return f"{left_code} {obfuscated_expr.op.value} {right_code}"
+        return f"string.concat({left_code}, {right_code})"
 
     elif isinstance(obfuscated_expr, solnodes.Literal):
         return f'"{obfuscated_expr.value}"' if isinstance(obfuscated_expr.value, str) else str(obfuscated_expr.value)
 
     else:
         return "/* obfuscated_string */"
-
 
 def modify_text_with_obfuscation(src_code, obfuscations):
     reverse_sorted_obfuscations = sorted(obfuscations, key=lambda x: -x.start_index)
@@ -153,8 +147,7 @@ def obfuscate_file(file_name):
         import traceback
         traceback.print_exc()
 
-
-random.seed(42)
-
-for f in files_to_obfuscate:
-    obfuscate_file(f)
+if __name__ == "__main__":
+    random.seed(42)
+    for f in files_to_obfuscate:
+        obfuscate_file(f)
