@@ -39,7 +39,7 @@ def _safe_func_name(func: solnodes.FunctionDefinition) -> str:
 def find_body_insert_offset(source: str, func: solnodes.FunctionDefinition) -> int:
     """
     以函数体 Block 的 '{' 为锚点，返回 '{' 之后第一个非空白字符的偏移。
-    若缺少 code（如 interface/abstract），返回 -1 表示不插入。
+    若缺少 code(如 interface/abstract),返回 -1 表示不插入。
     """
     code_block = getattr(func, "code", None)
     if code_block is None:
@@ -117,7 +117,7 @@ def _collect_top_level_slots(source: str, body_lbrace: int) -> list[tuple[int, s
     """
     从函数体 '{' 起，收集“顶层安全插入点”：
     - '{' 之后的首个位置
-    - 顶层分号 ';'（brace 深度==1 && paren/bracket 深度==0 && 不在注释/字符串）之后
+    - 顶层分号 ';'(brace 深度==1 && paren/bracket 深度==0 && 不在注释/字符串）之后
     - 匹配的 '}' 之前
     返回: 列表[(insert_pos, indent, line_no)]
     """
@@ -225,7 +225,7 @@ def apply_insertions(source: str, insertions: list[Insertion], file_label: str) 
     """
     为每个目标函数随机选择一个“顶层安全插槽”，逆序写入。
     插入时若当前位置非行首，会先换行再写入。
-    若插在 '}' 前，会在当前缩进基础上额外加一层缩进（4 空格）以保持块内对齐。
+    若插在 '}' 前, 会在当前缩进基础上额外加一层缩进(4 空格)以保持块内对齐。
     """
     if not insertions:
         print(f"[INFO] {file_label}: 无可插入的目标函数")

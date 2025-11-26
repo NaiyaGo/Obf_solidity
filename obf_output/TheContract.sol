@@ -1,131 +1,77 @@
 pragma solidity ^0.8.0;
 
-contract OperationsContract {
-    uint256[] public data;
+contract obf_2fc88f3dc28b49c681e76a9090d01048 {
+    uint256[] public obf_f69b2913d6944edc9e1ca6c49c9c6452;
 
     constructor() {
-        data.push(10);
-        data.push(20);
-        data.push(30);
+        obf_f69b2913d6944edc9e1ca6c49c9c6452.obf_37461d3d74064fa9ab63c355e5997aef(10);
+        obf_f69b2913d6944edc9e1ca6c49c9c6452.obf_37461d3d74064fa9ab63c355e5997aef(20);
+        obf_f69b2913d6944edc9e1ca6c49c9c6452.obf_37461d3d74064fa9ab63c355e5997aef(30);
     }
 
-    function mathOperations(uint256 _num1, uint256 _num2) external pure returns (uint256 result) {
-        if ((7 % 3) + 1 == 5) {
-            result = _num1 + _num2;
-        } else {
-            require(1 == 0, string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat("T", "h"), "i"), "s"), " "), "w"), "i"), "l"), "l"), " "), "n"), "e"), "v"), "e"), "r"), " "), "h"), "a"), "p"), "p"), "e"), "n"));
-        }
-        result = _num1 + _num2;
-        result -= 5;
-        result *= 2;
-        result /= 3;
-        
-        if (1 == 0) { uint256 neverUsed = 42; }
-        result %= 7;
+    function obf_2732d4c99c6a43139bec3376d745f6ac(uint256 obf_fc7f6cde599d4d65adf91973996a4146, uint256 obf_b455dc24c3e04b8287b7070a18afd7ff) external pure returns (uint256 obf_256928d149c34bee95775a745e510906) { 
+        obf_256928d149c34bee95775a745e510906 = obf_fc7f6cde599d4d65adf91973996a4146 + obf_b455dc24c3e04b8287b7070a18afd7ff;
+        obf_256928d149c34bee95775a745e510906 -= 5;
+        obf_256928d149c34bee95775a745e510906 *= 2;
+        obf_256928d149c34bee95775a745e510906 /= 3;
+        obf_256928d149c34bee95775a745e510906 %= 7;
     }
 
-    function logicalOperations(bool _a, bool _b) external pure returns (bool result) {
-        if ((18 / 3) - 1 != 4) {
-            result = (_a && _b) || (!_a || _b);
-        } else {
-            bytes32 unusedHash = keccak256(abi.encodePacked(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat("d", "e"), "a"), "d"), "_"), "c"), "o"), "d"), "e")));
-        }
-        result = (_a && _b) || (!_a || _b);
-        result = !result;
+    function obf_13a87ced91874e59b4151ef2b5ea38c7(bool obf_3f25b855e1f14faa9f6d4c8668aa8ab2, bool obf_380208f951bf4f4ebc9da6ee844c5626) external pure returns (bool obf_256928d149c34bee95775a745e510906) {
+        obf_256928d149c34bee95775a745e510906 = (obf_3f25b855e1f14faa9f6d4c8668aa8ab2 && obf_380208f951bf4f4ebc9da6ee844c5626) || (!obf_3f25b855e1f14faa9f6d4c8668aa8ab2 || obf_380208f951bf4f4ebc9da6ee844c5626);
+        obf_256928d149c34bee95775a745e510906 = !obf_256928d149c34bee95775a745e510906;
     }
 
-    function bitwiseOperations(uint256 _num1, uint256 _num2) external pure returns (uint256 result) {
-        if ((7 % 3) + 1 == 5) {
-            result = _num1 & _num2;
-        } else {
-            for (uint256 i = 0; i < 0; i++) { uint256 neverIterated = i; }
-        }
-        result = _num1 & _num2;
-        result |= _num1;
-        result ^= _num2;
-        if (!(7 * 2 < 10)) {
-            result <<= 2;
-        } else {
-            bytes32 unusedHash = keccak256(abi.encodePacked(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat("d", "e"), "a"), "d"), "_"), "c"), "o"), "d"), "e")));
-        }
-        result <<= 2;
-        if (!(12 / 4 != 3)) {
-            result >>= 1;
-        } else {
-            uint256 uselessVar = 0;
-        }
-        result >>= 1;
+    function obf_38e4c8d7ad504447bdce1f7d9b3ce18a(uint256 obf_fc7f6cde599d4d65adf91973996a4146, uint256 obf_b455dc24c3e04b8287b7070a18afd7ff) external pure returns (uint256 obf_256928d149c34bee95775a745e510906) {
+        obf_256928d149c34bee95775a745e510906 = obf_fc7f6cde599d4d65adf91973996a4146 & obf_b455dc24c3e04b8287b7070a18afd7ff;
+        obf_256928d149c34bee95775a745e510906 |= obf_fc7f6cde599d4d65adf91973996a4146;
+        obf_256928d149c34bee95775a745e510906 ^= obf_b455dc24c3e04b8287b7070a18afd7ff;
+        obf_256928d149c34bee95775a745e510906 <<= 2;
+        obf_256928d149c34bee95775a745e510906 >>= 1;
     }
 
-    function stringOperations(string memory _str1, string memory _str2) external pure returns (string memory result) {
-        result = string(abi.encodePacked(_str1, _str2));
+    function obf_b3b78617fc2b4466b7a40fc766a50617(string memory obf_af4bf231f5b74d2d999e147e1161e592, string memory obf_81b871f196054964b04de93ef2bb6cf7) external pure returns (string memory obf_256928d149c34bee95775a745e510906) {
+        obf_256928d149c34bee95775a745e510906 = string(abi.obf_e3b2b51c10ef44a096e3f78f2c4e6a0f(obf_af4bf231f5b74d2d999e147e1161e592, obf_81b871f196054964b04de93ef2bb6cf7));
     }
 
-    function arrayOperations() external {
-        if ((6 * 2) - 1 == 11) {
-            data.push(40);
-    
-    if (1 == 0) { uint256 neverUsed = 42; }
-        } else {
-            uint256 uselessVar = 0;
-        }
-        data.push(40);
-        if (!(5 + 3 == 10)) {
-            data.pop();
-        } else {
-            require(1 == 0, string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat("T", "h"), "i"), "s"), " "), "w"), "i"), "l"), "l"), " "), "n"), "e"), "v"), "e"), "r"), " "), "h"), "a"), "p"), "p"), "e"), "n"));
-        }
-        data.pop();
-        data[0] = 100;
-        if (!(9 - 4 > 6)) {
-            delete data[1];
-        } else {
-            require(1 == 0, string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat("T", "h"), "i"), "s"), " "), "w"), "i"), "l"), "l"), " "), "n"), "e"), "v"), "e"), "r"), " "), "h"), "a"), "p"), "p"), "e"), "n"));
-        }
-        delete data[1];
-        data.push(200);
+    function obf_99be15b0389c423a9780f83dc625d629() external {
+        obf_f69b2913d6944edc9e1ca6c49c9c6452.obf_37461d3d74064fa9ab63c355e5997aef(40);
+        obf_f69b2913d6944edc9e1ca6c49c9c6452.obf_edb68d6a40d245ba938f90da23997eaf();
+        obf_f69b2913d6944edc9e1ca6c49c9c6452[0] = 100;
+        delete obf_f69b2913d6944edc9e1ca6c49c9c6452[1];
+        obf_f69b2913d6944edc9e1ca6c49c9c6452.obf_37461d3d74064fa9ab63c355e5997aef(200);
     }
 
-    function controlStructures(uint256 _value) external pure returns (uint256) {
-        uint256 result;
-        if (_value > 10) {
-            if ((18 / 3) - 1 != 4) {
-                result = _value * 2;
-            } else {
-                bytes32 unusedHash = keccak256(abi.encodePacked(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat("d", "e"), "a"), "d"), "_"), "c"), "o"), "d"), "e")));
-            }
-            result = _value * 2;
+    function obf_d03343062d3e44eeab86aface956f10e(uint256 obf_cb4743b06c0746e0a3628abac16e6b47) external pure returns (uint256) {
+        uint256 obf_256928d149c34bee95775a745e510906;
+        if (obf_cb4743b06c0746e0a3628abac16e6b47 > 10) {
+            obf_256928d149c34bee95775a745e510906 = obf_cb4743b06c0746e0a3628abac16e6b47 * 2;
         } else {
-            if (!(7 * 2 < 10)) {
-                result = _value * 3;
-            } else {
-                require(1 == 0, string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat("T", "h"), "i"), "s"), " "), "w"), "i"), "l"), "l"), " "), "n"), "e"), "v"), "e"), "r"), " "), "h"), "a"), "p"), "p"), "e"), "n"));
-            }
-            result = _value * 3;
+            obf_256928d149c34bee95775a745e510906 = obf_cb4743b06c0746e0a3628abac16e6b47 * 3;
         }
 
-        for (uint256 i = 0; i < 5; i++) {
-            result += i;
+        for (uint256 obf_951c90e9fdc14d76be24d47083a17b13 = 0; obf_951c90e9fdc14d76be24d47083a17b13 < 5; obf_951c90e9fdc14d76be24d47083a17b13++) {
+            obf_256928d149c34bee95775a745e510906 += obf_951c90e9fdc14d76be24d47083a17b13;
         }
 
-        while (result > 0) {
-            result--;
+        while (obf_256928d149c34bee95775a745e510906 > 0) {
+            obf_256928d149c34bee95775a745e510906--;
         }
 
-        return result;
+        return obf_256928d149c34bee95775a745e510906;
     }
 
-    function visibilityAndModifiers(uint256 _newValue) external view onlyEven(_newValue) returns (uint256) {
-        return _newValue * 2;
+    function obf_aaf9f96dd8414c36adafd9dd2d908320(uint256 obf_e0a6dfdcef3c4a12b6f2e4c07c043eaf) external view obf_cd8bb52b166a48d3a45af9ef77ebdbed(obf_e0a6dfdcef3c4a12b6f2e4c07c043eaf) returns (uint256) {
+        return obf_e0a6dfdcef3c4a12b6f2e4c07c043eaf * 2;
     }
 
-    modifier onlyEven(uint256 _value) {
-        require(_value % 2 == 0, string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat(string.concat("V", "a"), "l"), "u"), "e"), " "), "m"), "u"), "s"), "t"), " "), "b"), "e"), " "), "e"), "v"), "e"), "n"));
+    modifier obf_cd8bb52b166a48d3a45af9ef77ebdbed(uint256 obf_cb4743b06c0746e0a3628abac16e6b47) {
+        require(obf_cb4743b06c0746e0a3628abac16e6b47 % 2 == 0, "Value must be even");
         _;
     }
 
-    function destroyContract(address payable _recipient) external {
-        selfdestruct(_recipient);
+    function obf_dcc4589eb07d4e2d9ac708a36752eb53(address payable obf_cf053b7448714bdc9a1569672336bdc3) external {
+        selfdestruct(obf_cf053b7448714bdc9a1569672336bdc3);
     }
 
     receive() external payable {}

@@ -1,13 +1,7 @@
 import dataclasses
-import warnings
-
-import pprint
-
-import json
-import subprocess
-from typing import Any, Optional, Final
 import random
-
+import warnings
+from typing import Optional, Final
 
 
 @dataclasses.dataclass
@@ -125,7 +119,7 @@ function bitwiseModulo(uint256 _x, uint256 _y) internal pure returns (uint256) {
     def transform_add_operation_to_bitwise_adder(
             cls,
             binary_operation_node: dict
-        ) -> dict:
+    ) -> dict:
         """
         转换加法操作为位运算加法器调用
          仅处理加法操作
@@ -201,7 +195,7 @@ function bitwiseModulo(uint256 _x, uint256 _y) internal pure returns (uint256) {
                 new_obfusion_function_name = random.choice([
                     "bitwiseSubtract",
                     "bitwiseSubtractByAdd"
-                    ])
+                ])
             case "*":
                 new_obfusion_function_name = "bitwiseMultiply"
             case "/":
@@ -313,7 +307,7 @@ function bitwiseModulo(uint256 _x, uint256 _y) internal pure returns (uint256) {
             cls,
             literal_node: dict,
             max_wrap_times: int = 4
-        ) -> dict:
+    ) -> dict:
         """
         转换数字字面量节点，添加双重逆运算
         :param cls: 类对象
@@ -324,13 +318,13 @@ function bitwiseModulo(uint256 _x, uint256 _y) internal pure returns (uint256) {
         # ------------- 验证输入节点类型 -------------
         if literal_node.get("type") != "NumberLiteral":
             raise TypeError("Input node must be a NumberLiteral")
-        
+
         literal_node: dict = cls.wrap_mix_random_xor_and_unary(
             node = literal_node,
             max_random_number = 255,
             max_wrap_times = max_wrap_times
         )
-        
+
         return literal_node
 
     @classmethod
@@ -338,7 +332,7 @@ function bitwiseModulo(uint256 _x, uint256 _y) internal pure returns (uint256) {
             cls,
             unary_operation_node: dict,
             max_wrap_times: int = 4
-        ) -> dict:
+    ) -> dict:
         """
         转换一元运算节点，添加双重逆运算
         :param cls: 类对象
@@ -367,7 +361,7 @@ function bitwiseModulo(uint256 _x, uint256 _y) internal pure returns (uint256) {
             binary_operation_node: dict,
             operand: str,
             max_wrap_times: int = 4
-        ) -> dict:
+    ) -> dict:
         """
         转换二元运算节点的指定操作数，添加双重逆运算
         :param cls: 类对象
@@ -391,7 +385,7 @@ function bitwiseModulo(uint256 _x, uint256 _y) internal pure returns (uint256) {
             cls,
             index_access_node: dict,
             max_wrap_times: int = 4
-        ) -> dict:
+    ) -> dict:
         """
         转换索引访问节点的索引表达式，添加双重逆运算
         :param cls: 类对象
@@ -417,7 +411,7 @@ function bitwiseModulo(uint256 _x, uint256 _y) internal pure returns (uint256) {
     def __wrap_specified_unary(
             node: dict,
             operator: str
-        ) -> dict:
+    ) -> dict:
         """
         包裹指定的一元运算符
          仅支持 ~ 和 -
@@ -430,8 +424,8 @@ function bitwiseModulo(uint256 _x, uint256 _y) internal pure returns (uint256) {
         # Or Identifier (but on the right hand side of the expression)
         # Assignment right hand side
         if node.get("type") not in (
-            "Literal",
-            "Identifier"
+                "Literal",
+                "Identifier"
         ):
             raise TypeError("Node must be a Literal or Identifier")
 
@@ -496,8 +490,8 @@ function bitwiseModulo(uint256 _x, uint256 _y) internal pure returns (uint256) {
 
     @staticmethod
     def __wrap_xor(node: dict,
-                 max_random_number: int = 255
-                 ) -> dict:
+                   max_random_number: int = 255
+                   ) -> dict:
         """
         包裹异或运算 2 次
         以实现数值不变的混淆效果
@@ -509,7 +503,7 @@ function bitwiseModulo(uint256 _x, uint256 _y) internal pure returns (uint256) {
         """
         # node should be "NumberLiteral"  # 常量值 (数字)
         if node.get("type") not in (
-            "NumberLiteral"
+                "NumberLiteral"
         ):
             raise TypeError("Node must be a Literal or NumberLiteral")
 
@@ -541,8 +535,8 @@ function bitwiseModulo(uint256 _x, uint256 _y) internal pure returns (uint256) {
 
     @classmethod
     def __wrap_random_xor(cls, node,
-                        max_random_number: int,
-                        max_wrap_times: int = 3) -> dict:
+                          max_random_number: int,
+                          max_wrap_times: int = 3) -> dict:
         """
         随机包裹异或运算 多次
          以实现数值不变的混淆效果
@@ -564,10 +558,10 @@ function bitwiseModulo(uint256 _x, uint256 _y) internal pure returns (uint256) {
 
     @classmethod
     def wrap_mix_random_xor_and_unary(
-        cls,
-        node: dict,
-        max_random_number: int = 255,
-        max_wrap_times: int = 3
+            cls,
+            node: dict,
+            max_random_number: int = 255,
+            max_wrap_times: int = 3
     ) -> dict:
         """
         混合随机包裹异或运算和一元运算 多次
@@ -618,7 +612,7 @@ function bitwiseModulo(uint256 _x, uint256 _y) internal pure returns (uint256) {
             cls,
             node: dict,
             func_counter: int = 0
-            ) -> tuple[dict, dict]:
+    ) -> tuple[dict, dict]:
         """
         把当前节点封装成私有函数，并返回 (函数定义, 调用节点)
 
@@ -660,132 +654,3 @@ function bitwiseModulo(uint256 _x, uint256 _y) internal pure returns (uint256) {
 
         return func_def, call_node
 
-
-
-def get_grammar_tree_js(path: str = r"./getGrammarTree.js") -> str:
-    """
-    获取 Solidity 代码的语法树 JSON 字符串
-    通过调用 Node.js 脚本实现
-    例如:
-    {
-      "type": "SourceUnit",
-      "children": [
-        ...
-      ]
-    }
-    该 JSON 字符串可以通过 json.loads() 解析为 Python 对象
-    例如:
-    solidity_ast = json.loads(solidity_ast_json_str)
-    这样就得到了 Solidity 代码的 AST，可以进行后续处理
-    例如用于代码混淆等操作
-    该函数依赖于 Node.js 环境和 npm install @solidity-parser/parser 安装的包
-    需要确保 Node.js 已安装且可用
-    :param path: Node.js 脚本路径
-    :return: Solidity 代码的语法树 JSON 字符串
-    """
-    # 调用 Node.js 脚本
-    result = subprocess.run(
-        ["node", path],
-        capture_output=True,
-        text=True
-    )
-
-    return result.stdout
-
-
-def find_all_given_operations(
-        node: dict | list,
-        expression_types_given: set[str],
-        expressions_list: Optional[list] = None
-) -> list[dict]:
-    """
-    递归查找 AST 中所有指定类型的表达式节点
-    return: 包含所有找到的指定类型表达式节点的列表
-    例如 expression_types_given = { "BinaryOperation", "UnaryOperation" }
-    则会找到所有二元运算和一元运算节点
-    递归遍历 AST 节点，如果节点类型在 expression_types_given 中，则添加到 expressions_list 中
-    然后继续递归遍历子节点
-    直到遍历完整个 AST
-    这样可以收集所有指定类型的表达式节点
-    例如用于收集所有数学表达式节点
-    以便后续进行混淆处理
-    :param node: 当前 AST 节点
-    :param expression_types_given: 需要查找的表达式类型集合
-    :param expressions_list: 用于存储找到的表达式节点的列表
-    :return: 包含所有找到的指定类型表达式节点的列表
-    """
-
-    # Type Guard for expressions_list
-    if not isinstance(expression_types_given, set):
-        raise TypeError("expression_types must be a set")
-
-    if expressions_list is None:
-        expressions_list = []
-    elif not isinstance(expressions_list, list):
-        raise TypeError("expressions_list must be a list or None")
-    else:
-        pass
-
-    # ------------------- 递归筛选 -------------------
-    if isinstance(node, dict):
-        if node.get("type") in expression_types_given:
-            expressions_list.append(node)
-
-        # 遍历子节点
-        for child in node.values():
-            find_all_given_operations(
-                node=child,
-                expression_types_given=expression_types_given,
-                expressions_list=expressions_list
-            )
-    elif isinstance(node, list):
-        for item in node:
-            find_all_given_operations(
-                item,
-                expression_types_given=expression_types_given,
-                expressions_list=expressions_list
-            )
-    else:
-        pass
-
-    return expressions_list
-
-
-if __name__ == '__main__':
-
-    solidity_ast_json_str: str = get_grammar_tree_js()
-
-    # 解析 JSON
-    solidity_ast: Any = json.loads(solidity_ast_json_str)
-
-    # 用于引用储存所有数学表达式节点
-    all_math_operations: list = []
-
-    # 定义需要收集的表达式类型
-    expression_types: set[str] = {
-        "BinaryOperation",  # 二元运算 (+ - * / %)
-        "UnaryOperation",  # 一元运算 (++ -- -x)
-        # "FunctionCall",  # 函数调用
-        # "MemberAccess",      # msg.sender / obj.prop
-        "IndexAccess",  # arr[i]
-        # "Identifier",        # 变量名
-        "Literal"  # 常量值 (数字, 字符串)
-    }
-
-    """
-    递归遍历 AST，查找所有数学表达式节点
-    将找到的节点添加到 expressions_list 中
-    注意是返回引用，不是拷贝
-    @param node: 当前 AST 节点
-    @param expressions_list: 用于存储找到的表达式节点的列表
-    @return: 包含所有找到的数学表达式节点的列表
-    """
-
-
-    # 调用函数查找所有数学表达式节点
-    found_expressions: list[dict] = find_all_given_operations(
-        node=solidity_ast,
-        expression_types_given=expression_types
-    )
-    for expr in found_expressions:
-        pprint.pprint(expr.items())

@@ -5,7 +5,7 @@
 
 
 // // 项目目录
-// const projectDir = path.resolve("./project");
+// const projectDir = path.resolve("./solidity_project");
 // // Solidity 文件路径
 // const solidityFilePath = path.join(projectDir, "contracts","TestContract.sol");
 
@@ -27,7 +27,7 @@ const path = require("path");
 
 // 用法：node getGrammarTree.js <solidity-file> 
 // 也支持：node getGrammarTree.js -      （从 stdin 读取源码）
-// 若不传参，则回退到 ./project/contracts/TestContract.sol
+// 若不传参，则回退到 ./solidity_project/contracts/TestContract.sol
 
 const argPath = process.argv[2];
 
@@ -57,7 +57,7 @@ if (argPath && argPath !== "-") {
   targetPath = "-"; // stdin
 } else {
   // 兼容旧逻辑：默认路径
-  const projectDir = path.resolve("./project");
+  const projectDir = path.resolve("./solidity_project");
   targetPath = path.join(projectDir, "contracts", "TestContract.sol");
 }
 

@@ -6,21 +6,36 @@ from pathlib import Path
 from dataclasses import dataclass, field
 import argparse
 import random
-import shutil
 import os
 from typing import List, Tuple, Dict, Any, Optional, Iterable, Callable
 
 from solidity_parser import filesys
 from solidity_parser.ast import symtab, solnodes
 from obf_deadcode import iter_ast_roots, collect_top_level_slots, generate_dead_code, safe_func_name
-from obf_literal import find_string_literals_in_ast, should_obfuscate_literal, obfuscate_string_literal, modify_text_with_obfuscation, Obfuscation
+from obf_literal import obfuscate_code_literals
 from obf_controlflow import obfuscate_code_cf
-from obf_layout import Match, get_grammar_tree, collect_definitions, traverse
+from obf_mathOperation import ConfusingMathOperationClass as MathOps
+import subprocess
+import re
+import json
 
 
 # =========================================================
 # Pass 上下文与基类
 # =========================================================
+
+def get_grammar_tree(file_path) -> str:
+    # 调用 Node.js 脚本
+    # 调用 Node.js 脚本（已支持传入目标文件路径）
+    result = subprocess.run(
+        ["node", "./obfusion_project/getGrammarTree.js", file_path],
+        capture_output=True,
+        text=True
+    )
+    if result.returncode != 0 and result.stderr:
+        raise RuntimeError(result.stderr)
+
+    return result.stdout
 
 @dataclass
 class ModuleContext:
@@ -36,7 +51,7 @@ class ModuleContext:
     def rebuild(self, new_src: str) -> None:
         """
         将 new_src 作为当前源码，并在需要时重建 AST。
-        注意：这里仅更新 self.src；如果你需要“变更后 AST”，
+        注意：这里仅更新 self.src;如果你需要“变更后 AST”,
         建议在实际实现时重新构建 VFS/符号表并赋值给 ast_root。
         """
         self.src = new_src
@@ -58,7 +73,7 @@ class ObfuscationPass:
 
     def transform(self, ctx: ModuleContext) -> Tuple[str, Dict[str, Any]]:
         """
-        输入 ModuleContext，输出 (new_src, metadata)。
+        输入 ModuleContext, 输出 (new_src, metadata)。
         这里默认不做修改，仅打印提示。
         """
         print(f"[{self.name}] {ctx.project_dir / ctx.file_name}: (noop, scaffold only)")
@@ -77,70 +92,22 @@ class StringLiteralPass(ObfuscationPass):
     name = "StringLiteral"
 
     def transform(self, ctx: ModuleContext):
-        density: float = float(self.params.get("density", 1.0))
+        """
+        直接复用用户脚本中的 obfuscate_code() 对函数体内的 ExprStmt 做 if/else 包装。
+        仅使用脚本中已有的函数/方法；不新增任何自定义工具。
+        """
+        density = float(self.params.get("density", 0.3))
+        ast_nodes = ctx.ast_root  # 与你脚本中 obfuscate_file 的 loaded_src.ast 一致
 
-        # 1) 用当前源码写到临时路径并重新解析（保证 AST 偏移与文本一致）
-        tmp_path = Path(".solp_tmp") / ctx.file_name
-        tmp_path.parent.mkdir(parents=True, exist_ok=True)
-        tmp_path.write_text(ctx.src, encoding="utf-8")
+        try:
+            new_src = obfuscate_code_literals(ctx.src, ast_nodes)
+        except Exception as e:
+            print(f"[{self.name}] ERROR {ctx.project_dir / ctx.file_name}: {e}")
+            return ctx.src, {"changed": False, "error": str(e), "density": density}
 
-        vfs = filesys.VirtualFileSystem(tmp_path.parent, None, [])
-        builder = symtab.Builder2(vfs)
-        builder.process_or_find_from_base_dir(tmp_path.name)
-        loaded = vfs.sources[tmp_path.name]
-        ast_root, src_code = loaded.ast, loaded.contents
-
-        # 2) 收集字符串字面量（复用你的函数），并按 (start,end) 去重
-        def _iter_roots(r):
-            if r is None: return []
-            if isinstance(r, (list, tuple)): return [x for x in r if x]
-            return [r]
-
-        literals = []
-        for root in _iter_roots(ast_root):
-            literals.extend(find_string_literals_in_ast(root))
-
-        candidates = [lit for lit in literals if should_obfuscate_literal(lit)]
-
-        seen = set()  # 去重集合
-        plan = []
-        for lit in candidates:
-            key = (lit.start_buffer_index, lit.end_buffer_index)
-            if key in seen:
-                continue
-            if random.random() <= density:
-                obf_expr = obfuscate_string_literal(lit)
-                plan.append(Obfuscation(
-                    original_literal=lit,
-                    obfuscated_expr=obf_expr,
-                    start_index=lit.start_buffer_index,
-                    end_index=lit.end_buffer_index
-                ))
-                seen.add(key)
-
-        print(f"[SCAN][{self.name}] {ctx.project_dir / ctx.file_name}: "
-              f"literals={len(literals)}, candidates={len(candidates)}, plan={len(plan)}, density={density}")
-
-        if not plan:
-            return ctx.src, {"changed": False, "literals": len(literals),
-                             "candidates": len(candidates), "replacements": 0}
-
-        # 3) 在“与 AST 一致的 src_code”上做替换，然后把新源码返回
-        new_src = modify_text_with_obfuscation(src_code, plan)
-
-        for obf in plan:
-            val = obf.original_literal.value
-            preview = (val[:37] + "...") if isinstance(val, str) and len(val) > 40 else val
-            print(f"[OBF][{self.name}] file={ctx.project_dir / ctx.file_name} "
-                  f"range=[{obf.start_index}:{obf.end_index}] literal={preview!r}")
-
-        return new_src, {
-            "changed": True,
-            "literals": len(literals),
-            "candidates": len(candidates),
-            "replacements": len(plan),
-        }
-
+        changed = (new_src != ctx.src)
+        print(f"[{self.name}] {ctx.project_dir / ctx.file_name}: density={density}, changed={changed}")
+        return new_src, {"changed": changed, "density": density}
 
 class ControlFlowPass(ObfuscationPass):
     name = "ControlFlow"
@@ -235,25 +202,115 @@ class LayoutPass(ObfuscationPass):
     name = "Layout"
 
     def transform(self, ctx: ModuleContext):
-        """
-        仅调用你 layout 脚本中已有的方法：
-        - 将当前源码写入一个临时 .sol 路径（供 Node 解析）
-        - 调用 layout.layout_obfuscate(ctx.src, tmp_path) 完成改名与倒序替换
-        - 返回新源码与统计信息
-        """
-        import obf_layout as layout  # ← 改成你的 layout 脚本模块名（不带 .py）
-
-        # 1) 把当前源码写入临时文件，供 getGrammarTree.js 解析
         tmp_path = Path(".solp_tmp") / ctx.file_name
         tmp_path.parent.mkdir(parents=True, exist_ok=True)
         tmp_path.write_text(ctx.src, encoding="utf-8")
 
-        # 2) 直接调用你已封装好的入口（内部会：get_grammar_tree(tmp_path) → collect_definitions → traverse → 倒序替换）
-        new_src, stats = layout.layout_obfuscate(ctx.src, str(tmp_path))
+        # 直接用刚才封装好的入口
+        from obf_layout import layout_obfuscate
+        new_src, stats = layout_obfuscate(ctx.src, str(tmp_path))
+        print(f"[{self.name}] {ctx.project_dir / ctx.file_name}: renamed={stats['renamed']}, changed={stats['changed']}")
+        return new_src, stats
 
-        changed = (new_src != ctx.src)
-        print(f"[{self.name}] {ctx.project_dir / ctx.file_name}: renamed={stats.get('renamed', 0)}, changed={changed}")
-        return new_src, {"changed": changed, **stats}
+from dataclasses import dataclass
+from typing import List, Dict, Tuple, Any
+from pathlib import Path
+import json
+
+# 假定你已有：ObfuscationPass, ModuleContext, get_grammar_tree
+# from your_module import ObfuscationPass, ModuleContext, get_grammar_tree
+
+@dataclass
+class _ReplacePlan:
+    start: int
+    end:   int   # JS AST: 闭区间 [start, end]
+    text:  str
+
+class OperationPass(ObfuscationPass):
+    name = "Operation"
+
+    # 统一库名
+    LIB_NAME = "ObfOps"
+
+    # 位运算实现：内部函数，静态调用 ObfOps.func(a,b)
+    HELPERS_RAW = "\n".join([
+            MathOps.pre_defined_bitwise_adder,
+            MathOps.pre_defined_bitwise_subtractor_simpler,
+            MathOps.pre_defined_bitwise_subtractor,
+            MathOps.pre_defined_bitwise_multiplier,
+            MathOps.pre_defined_bitwise_divider,
+            MathOps.pre_defined_bitwise_modulo,
+        ]).strip("\n")
+
+    HELPERS_RAW = "library ObfOps {\n" + HELPERS_RAW + "\n}"
+
+    def transform(self, ctx: 'ModuleContext') -> Tuple[str, Dict[str, Any]]:
+        # 1) 把当前源码落盘到临时路径，供 JS 侧解析（保持和你的 get_grammar_tree 约定）
+        tmp_path = Path(".solp_tmp") / ctx.file_name
+        tmp_path.parent.mkdir(parents=True, exist_ok=True)
+        tmp_path.write_text(ctx.src, encoding="utf-8")
+
+        # 2) 解析 JS AST（必须是 loc/range 开启的）
+        js_ast: Any = json.loads(get_grammar_tree(str(tmp_path)))
+        src = ctx.src
+
+        # 3) DFS 收集 BinaryOperation，生成替换计划
+        plans: List[_ReplacePlan] = []
+
+        # op → helper 名
+        op_map = {
+            "+": "bitwiseAdd",
+            "-": "bitwiseSubtractByAdd",  # 用补码加法版，稳定
+            "*": "bitwiseMultiply",
+            "/": "bitwiseDivide",
+            "%": "bitwiseModulo",
+        }
+
+        def _slice_src(r: List[int]) -> str:
+            # JS parser 的 range 为 [start, end]（闭区间）
+            return src[r[0]: r[1] + 1]
+
+        def _walk(node: Any):
+            if isinstance(node, dict):
+                if node.get("type") == "BinaryOperation":
+                    op = node.get("operator")
+                    if op in op_map and "range" in node and isinstance(node.get("left"), dict) and isinstance(node.get("right"), dict):
+                        L, R = node["left"], node["right"]
+                        if "range" in L and "range" in R:
+                            left_txt  = _slice_src(L["range"])
+                            right_txt = _slice_src(R["range"])
+                            helper = op_map[op]
+                            # 包一层括号，避免与周围表达式结合优先级产生歧义
+                            call_txt = f"({self.LIB_NAME}.{helper}({left_txt}, {right_txt}))"
+                            start, end = node["range"]
+                            plans.append(_ReplacePlan(start=start, end=end, text=call_txt))
+                # 递归
+                for v in node.values():
+                    _walk(v)
+            elif isinstance(node, list):
+                for v in node:
+                    _walk(v)
+
+        _walk(js_ast)
+
+        if not plans:
+            print(f"[{self.name}] {ctx.project_dir / ctx.file_name}: no binary ops to replace.")
+            return ctx.src, {"changed": False, "replaced": 0}
+
+        # 4) 按 start 逆序应用替换（右侧用 end+1）
+        plans.sort(key=lambda p: p.start, reverse=True)
+        for p in plans:
+            left, right = src[:p.start], src[p.end + 1:]
+            src = left + p.text + right
+            print(f"[OBF][{self.name}] replace range=[{p.start}:{p.end}] -> {p.text[:80]!r}")
+
+        # 5) 若文件未包含库，则在文件末尾追加一次
+        if f"library {self.LIB_NAME}" not in src:
+            tail_sep = "" if src.endswith("\n") else "\n"
+            src = f"{src}{tail_sep}\n\n{self.HELPERS_RAW}\n"
+            print(f"[INJECT][{self.name}] appended library {self.LIB_NAME} at file end")
+
+        return src, {"changed": True, "replaced": len(plans), "library_appended": True}
 
 
 # =========================================================
@@ -303,10 +360,10 @@ def enumerate_sol_files(base: Path) -> Iterable[Path]:
 
 def main():
     ap = argparse.ArgumentParser(description="Solidity Obfuscation Pipeline (scaffold)")
-    ap.add_argument("--file", type=str, default='./project/contracts/TheContract.sol', help="指定单个 .sol 文件") # './gptcomments/TheContract.sol'
-    ap.add_argument("--dir", type=str, default=None, help="指定目录（递归处理 .sol）")
+    ap.add_argument("--file", type=str, default="TheContract.sol", help="指定.sol 文件, 以,分割")
+    ap.add_argument("--dir", type=str, default="./solidity_project/src/", help="指定目录（递归处理 .sol)")
     ap.add_argument("--out", type=str, default="./obf_output", help="输出目录")
-    ap.add_argument("--enable", type=str, default="cf, dead, literal", help="启用的 Pass 列表（逗号分隔）：cf,dead,layout")
+    ap.add_argument("--enable", type=str, default="layout", help="启用的 Pass 列表(逗号分隔) cf,dead,layout")
     ap.add_argument("--seed", type=int, default=None)
     
     ap.add_argument("--cf-density", type=float, default=0.5, help="ControlFlow 注入密度（占位）")
@@ -315,8 +372,8 @@ def main():
     ap.add_argument("--layout-shuffle", type=float, default=0.0, help="Layout 重排强度（占位）")
     args = ap.parse_args()
 
-    if not args.file and not args.dir:
-        raise ValueError("必须指定 --file 或 --dir")
+    if not args.dir:
+        raise ValueError("必须指定 --dir")
 
     if args.seed is not None:
         random.seed(args.seed)
@@ -329,6 +386,8 @@ def main():
     # 组装 Pass 列表（不实现，仅占位）
     enable = {x.strip() for x in args.enable.split(",") if x.strip()}
     passes: List[ObfuscationPass] = []
+    if "op" in enable:
+        passes.append(OperationPass())
     if "cf" in enable:
         passes.append(ControlFlowPass(density=args.cf_density))
     if "dead" in enable:
@@ -338,25 +397,24 @@ def main():
     if "layout" in enable:
         passes.append(LayoutPass(shuffle=args.layout_shuffle))
 
-    # 单文件模式
+    base_dir = Path(args.dir) # if args.dir else Path(".")
+    # 指定文件
     if args.file:
-        src_path = Path(args.file)
-        if not src_path.name.endswith(".sol"):
-            raise ValueError("指定的文件必须以 .sol 结尾")
-        obf_src = run_pipeline_on_file(src_path.parent, src_path.name, passes)
-        out_path = out_dir / src_path.name
-        out_path.parent.mkdir(parents=True, exist_ok=True)
-        out_path.write_text(obf_src, encoding="utf-8")
-        print(f"[WRITE] {out_path}")
+        for file_name in [f.strip() for f in args.file.split(",") if f.strip()]:
+            src_path = Path(file_name)
+            if not src_path.name.endswith(".sol"):
+                raise ValueError("指定的文件必须以 .sol 结尾")
+            obf_src = run_pipeline_on_file(base_dir, src_path.name, passes)
+            out_path = out_dir / src_path.name
+            out_path.write_text(obf_src, encoding="utf-8")
+            print(f"[WRITE] {out_path}")
         return
 
-    # 目录模式
-    base_dir = Path(args.dir)
+    # 目录下所有文件
     for src_file in enumerate_sol_files(base_dir):
         rel = src_file.relative_to(base_dir)
-        obf_src = run_pipeline_on_file(src_file.parent, src_file.name, passes)
+        obf_src = run_pipeline_on_file(base_dir, src_file.name, passes)
         out_path = out_dir / rel
-        out_path.parent.mkdir(parents=True, exist_ok=True)
         out_path.write_text(obf_src, encoding="utf-8")
         print(f"[WRITE] {out_path}")
 
