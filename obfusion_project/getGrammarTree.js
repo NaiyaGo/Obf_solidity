@@ -57,7 +57,7 @@ if (argPath && argPath !== "-") {
   targetPath = "-"; // stdin
 } else {
   // 兼容旧逻辑：默认路径
-  const projectDir = path.resolve("./solidity_project");
+  const projectDir = path.resolve("../solidity_project");
   targetPath = path.join(projectDir, "contracts", "TestContract.sol");
 }
 
