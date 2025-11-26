@@ -62,7 +62,7 @@ def add_true_condition(code):
     if random.random() < 0.5:
         fake_logic = f"({random.choice(always_true_conditions)})"
     else:
-        fake_logic = f"(!!{random.choice(always_false_conditions)})"
+        fake_logic = f"(!({random.choice(always_false_conditions)}))"
 
     return f"if {fake_logic} {{\n    {code}\n}} else {{\n    {random.choice(deadcode)}\n}}"
 

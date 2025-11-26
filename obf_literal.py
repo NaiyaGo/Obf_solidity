@@ -89,7 +89,7 @@ def generate_obfuscated_code(obfuscated_expr):
     if isinstance(obfuscated_expr, solnodes.BinaryOp):
         left_code = generate_obfuscated_code(obfuscated_expr.left)
         right_code = generate_obfuscated_code(obfuscated_expr.right)
-        return f"{left_code} {obfuscated_expr.op.value} {right_code}"
+        return f"string.concat({left_code}, {right_code})"
 
     elif isinstance(obfuscated_expr, solnodes.Literal):
         return f'"{obfuscated_expr.value}"' if isinstance(obfuscated_expr.value, str) else str(obfuscated_expr.value)

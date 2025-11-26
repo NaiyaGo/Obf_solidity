@@ -12,195 +12,10 @@ from typing import List, Tuple, Dict, Any, Optional, Iterable, Callable
 
 from solidity_parser import filesys
 from solidity_parser.ast import symtab, solnodes
+from obf_deadcode import iter_ast_roots, collect_top_level_slots, generate_dead_code, safe_func_name
 from obf_literal import find_string_literals_in_ast, should_obfuscate_literal, obfuscate_string_literal, modify_text_with_obfuscation, Obfuscation
 from obf_controlflow import obfuscate_code_cf
 from obf_layout import Match, get_grammar_tree, collect_definitions, traverse
-
-DEAD_CODE_TEMPLATES = [
-    "uint256 uselessVar = 0;",  # Simple unused variable
-    "if (1 == 0) { uint256 neverUsed = 42; }",  # Conditional that never executes
-    "for (uint256 i = 0; i < 0; i++) { uint256 neverIterated = i; }",  # Unreachable loop
-    "require(1 == 0, 'This will never happen');",  # Impossible requirement
-    "bytes32 unusedHash = keccak256(abi.encodePacked('dead_code'));",
-]
-
-def generate_dead_code() -> str:
-    return random.choice(DEAD_CODE_TEMPLATES)
-
-# =========================================================
-# 基础工具：AST 迭代 & 函数体插槽扫描（顶层安全位置）
-# =========================================================
-
-def iter_ast_roots(ast_root) -> List[Any]:
-    """把 loaded.ast 规范化为可迭代的根节点列表，过滤 None。"""
-    if ast_root is None:
-        return []
-    if isinstance(ast_root, (list, tuple)):
-        return [n for n in ast_root if (n is not None and hasattr(n, "get_all_children"))]
-    return [ast_root] if hasattr(ast_root, "get_all_children") else []
-
-
-def safe_func_name(func: solnodes.FunctionDefinition) -> str:
-    """更友好的函数名显示。"""
-    try:
-        n = getattr(func, "name", None)
-        if n is None:
-            return "<anon>"
-        return getattr(n, "value", str(n))
-    except Exception:
-        return "<anon>"
-
-
-def find_block_end(source: str, open_brace_idx: int) -> int:
-    """给定函数体 '{' 的索引，返回匹配的 '}' 索引；失败返回 -1。"""
-    i = open_brace_idx + 1
-    n = len(source)
-    depth = 1
-    in_line_cmt = False
-    in_block_cmt = False
-    in_str = False
-    str_ch = ""
-    escape = False
-    while i < n:
-        ch = source[i]
-        nxt = source[i + 1] if i + 1 < n else ""
-        if in_line_cmt:
-            if ch == "\n":
-                in_line_cmt = False
-        elif in_block_cmt:
-            if ch == "*" and nxt == "/":
-                in_block_cmt = False
-                i += 1
-        elif in_str:
-            if escape:
-                escape = False
-            elif ch == "\\":
-                escape = True
-            elif ch == str_ch:
-                in_str = False
-        else:
-            if ch == "/" and nxt == "/":
-                in_line_cmt = True
-                i += 1
-            elif ch == "/" and nxt == "*":
-                in_block_cmt = True
-                i += 1
-            elif ch in ("'", '"'):
-                in_str = True
-                str_ch = ch
-            elif ch == "{":
-                depth += 1
-            elif ch == "}":
-                depth -= 1
-                if depth == 0:
-                    return i
-        i += 1
-    return -1
-
-
-def collect_top_level_slots(source: str, func: solnodes.FunctionDefinition) -> List[Tuple[int, str, int]]:
-    """
-    以函数体 '{' 为锚，收集“顶层安全插入点”：
-    - '{' 后首个非空白位置
-    - 顶层语句分号 ';' 之后的起始位置
-    - 匹配的 '}' 之前（回退空白）
-    返回: [(offset, indent, line_no), ...]
-    """
-    code_block = getattr(func, "code", None)
-    if code_block is None:
-        return []
-    try:
-        lbrace = code_block.start_buffer_index
-    except Exception:
-        return []
-
-    end = find_block_end(source, lbrace)
-    if end < 0:
-        return []
-
-    def _indent_at(pos: int) -> Tuple[str, int]:
-        left = source[:pos]
-        line_no = left.count("\n") + 1
-        line_start = left.rfind("\n") + 1
-        indent = left[line_start: len(left) - len(left[line_start:].lstrip())]
-        return indent, line_no
-
-    slots: List[Tuple[int, str, int]] = []
-
-    # 1) '{' 后首插槽
-    i = lbrace + 1
-    while i < end and source[i] in " \t\r\n":
-        i += 1
-    ind, ln = _indent_at(i)
-    slots.append((i, ind, ln))
-
-    # 2) 顶层分号 ';' 后
-    in_line_cmt = in_block_cmt = False
-    in_str = False
-    str_ch = ""
-    escape = False
-    depth = 1
-    paren = bracket = 0
-    i = lbrace + 1
-    while i < end:
-        ch = source[i]
-        nxt = source[i + 1] if i + 1 < len(source) else ""
-        if in_line_cmt:
-            if ch == "\n":
-                in_line_cmt = False
-        elif in_block_cmt:
-            if ch == "*" and nxt == "/":
-                in_block_cmt = False
-                i += 1
-        elif in_str:
-            if escape:
-                escape = False
-            elif ch == "\\":
-                escape = True
-            elif ch == str_ch:
-                in_str = False
-        else:
-            if ch == "/" and nxt == "/":
-                in_line_cmt = True
-                i += 1
-            elif ch == "/" and nxt == "*":
-                in_block_cmt = True
-                i += 1
-            elif ch in ("'", '"'):
-                in_str = True
-                str_ch = ch
-            elif ch == "(":
-                paren += 1
-            elif ch == ")":
-                paren = max(paren - 1, 0)
-            elif ch == "[":
-                bracket += 1
-            elif ch == "]":
-                bracket = max(bracket - 1, 0)
-            elif ch == "{":
-                depth += 1
-            elif ch == "}":
-                depth -= 1
-                if depth == 0:
-                    break
-            elif ch == ";" and depth == 1 and paren == 0 and bracket == 0:
-                j = i + 1
-                while j < end and source[j] in " \t\r\n":
-                    j += 1
-                ind2, ln2 = _indent_at(j)
-                slots.append((j, ind2, ln2))
-        i += 1
-
-    # 3) '}' 之前
-    j = end
-    while j > lbrace and source[j - 1] in " \t\r\n":
-        j -= 1
-    ind3, ln3 = _indent_at(j)
-    slots.append((j, ind3, ln3))
-
-    # 去重排序
-    slots = sorted(set(slots), key=lambda x: x[0])
-    return slots
 
 
 # =========================================================
@@ -254,27 +69,45 @@ class ObfuscationPass:
 # 具体占位 Pass（未实现：仅日志 & 接口）
 # =========================================================
 
+from pathlib import Path
+from solidity_parser import filesys
+from solidity_parser.ast import symtab
+
 class StringLiteralPass(ObfuscationPass):
     name = "StringLiteral"
 
     def transform(self, ctx: ModuleContext):
-        """对字符串字面量做拆分+拼接的字面量混淆。仅复用用户脚本中的现有函数。"""
-        density: float = float(self.params.get("density", 1.0))  # 允许抽样；默认全部替换
+        density: float = float(self.params.get("density", 1.0))
 
-        # 兼容单/多根 AST：iter_ast_roots 已在你的框架中定义
-        roots = iter_ast_roots(ctx.ast_root)
+        # 1) 用当前源码写到临时路径并重新解析（保证 AST 偏移与文本一致）
+        tmp_path = Path(".solp_tmp") / ctx.file_name
+        tmp_path.parent.mkdir(parents=True, exist_ok=True)
+        tmp_path.write_text(ctx.src, encoding="utf-8")
 
-        # 收集字符串字面量（复用你的递归函数）
+        vfs = filesys.VirtualFileSystem(tmp_path.parent, None, [])
+        builder = symtab.Builder2(vfs)
+        builder.process_or_find_from_base_dir(tmp_path.name)
+        loaded = vfs.sources[tmp_path.name]
+        ast_root, src_code = loaded.ast, loaded.contents
+
+        # 2) 收集字符串字面量（复用你的函数），并按 (start,end) 去重
+        def _iter_roots(r):
+            if r is None: return []
+            if isinstance(r, (list, tuple)): return [x for x in r if x]
+            return [r]
+
         literals = []
-        for root in roots:
+        for root in _iter_roots(ast_root):
             literals.extend(find_string_literals_in_ast(root))
 
-        # 过滤可混淆候选
         candidates = [lit for lit in literals if should_obfuscate_literal(lit)]
 
-        # 采样并生成替换计划（复用你的 Obfuscation 与 obfuscate_string_literal）
+        seen = set()  # 去重集合
         plan = []
         for lit in candidates:
+            key = (lit.start_buffer_index, lit.end_buffer_index)
+            if key in seen:
+                continue
             if random.random() <= density:
                 obf_expr = obfuscate_string_literal(lit)
                 plan.append(Obfuscation(
@@ -283,6 +116,7 @@ class StringLiteralPass(ObfuscationPass):
                     start_index=lit.start_buffer_index,
                     end_index=lit.end_buffer_index
                 ))
+                seen.add(key)
 
         print(f"[SCAN][{self.name}] {ctx.project_dir / ctx.file_name}: "
               f"literals={len(literals)}, candidates={len(candidates)}, plan={len(plan)}, density={density}")
@@ -291,16 +125,12 @@ class StringLiteralPass(ObfuscationPass):
             return ctx.src, {"changed": False, "literals": len(literals),
                              "candidates": len(candidates), "replacements": 0}
 
-        # 应用文本替换（复用你的 modify_text_with_obfuscation）
-        new_src = modify_text_with_obfuscation(ctx.src, plan)
+        # 3) 在“与 AST 一致的 src_code”上做替换，然后把新源码返回
+        new_src = modify_text_with_obfuscation(src_code, plan)
 
-        # 打印逐项替换日志
         for obf in plan:
             val = obf.original_literal.value
-            if isinstance(val, str) and len(val) > 40:
-                preview = val[:37] + "..."
-            else:
-                preview = val
+            preview = (val[:37] + "...") if isinstance(val, str) and len(val) > 40 else val
             print(f"[OBF][{self.name}] file={ctx.project_dir / ctx.file_name} "
                   f"range=[{obf.start_index}:{obf.end_index}] literal={preview!r}")
 
@@ -308,7 +138,7 @@ class StringLiteralPass(ObfuscationPass):
             "changed": True,
             "literals": len(literals),
             "candidates": len(candidates),
-            "replacements": len(plan)
+            "replacements": len(plan),
         }
 
 
@@ -338,30 +168,34 @@ class DeadCodePass(ObfuscationPass):
     name = "DeadCode"
 
     def transform(self, ctx: ModuleContext) -> Tuple[str, Dict[str, Any]]:
-        """
-        在每个有函数体的函数中，按密度随机选择一个“顶层安全插槽”，插入一行死代码。
-        - 顶层插槽来自 collect_top_level_slots(ctx.src, func)
-        - 插入时处理换行与缩进；若在 '}' 前插入，则额外加一层缩进以保持块内对齐
-        - 打印详细日志，便于追踪每一次修改
-        """
         density: float = float(self.params.get("density", 0.3))
-        INDENT_UNIT = "    "  # 4 空格
+        INDENT_UNIT = "    "
 
         roots = iter_ast_roots(ctx.ast_root)
         total_funcs = 0
         candidates = 0
-        prepared: List[Tuple[int, str, int, solnodes.FunctionDefinition, str]] = []  # (pos, indent, line_no, func, code)
+        prepared: List[Tuple[int, str, int, solnodes.FunctionDefinition, str]] = []
 
-        # 统计并挑选插入目标
         for root in roots:
             for fn in root.get_all_children(lambda x: isinstance(x, solnodes.FunctionDefinition)):
                 total_funcs += 1
-                if getattr(fn, "code", None) is None:
-                    # interface/abstract 函数没有函数体
+                code_block = getattr(fn, "code", None)
+                if code_block is None:
                     continue
-                slots = collect_top_level_slots(ctx.src, fn)
+
+                # 取函数体 '{' 的字符索引
+                lbrace = getattr(code_block, "start_buffer_index", None)
+                if lbrace is None:
+                    # 某些版本用 loc.start.offset
+                    try:
+                        lbrace = code_block.loc.start.offset  # type: ignore[attr-defined]
+                    except Exception:
+                        continue  # 拿不到就跳过该函数
+
+                slots = collect_top_level_slots(ctx.src, int(lbrace))
                 if not slots:
                     continue
+
                 candidates += 1
                 if random.random() < density:
                     pos, indent, line_no = random.choice(slots)
@@ -374,37 +208,27 @@ class DeadCodePass(ObfuscationPass):
         if not prepared:
             return ctx.src, {"changed": False, "functions": total_funcs, "candidates": candidates, "inserts": 0}
 
-        # 逆序应用插入，避免偏移串扰
         src = ctx.src
         for pos, indent, line_no, fn, dead_code in sorted(prepared, key=lambda x: x[0], reverse=True):
             left, right = src[:pos], src[pos:]
-
-            # 1) 若不在行首，先换行
             needs_leading_nl = (pos > 0 and src[pos - 1] != "\n")
             prefix_nl = "\n" if needs_leading_nl else ""
-
-            # 2) 若正好插在 '}' 之前，额外加一层缩进
             extra_indent = INDENT_UNIT if (pos < len(src) and src[pos] == "}") else ""
             indent_for_insert = indent + extra_indent
-
-            # 3) 组装插入文本：前置换行(如需) + 缩进 + 代码 + 换行 + 原缩进（保留后续行缩进）
             inserted = f"{prefix_nl}{indent_for_insert}{dead_code}\n{indent}"
             src = left + inserted + right
 
-            # 打印日志
             fn_name = safe_func_name(fn)
             preview = dead_code.strip().replace("\n", " ")[:120]
             print(f"[OBF][{self.name}] file={ctx.project_dir / ctx.file_name} "
                   f"func={fn_name!r} offset={pos} line={line_no} -> insert: {preview}")
 
-        # 返回新源码与元数据
         return src, {
             "changed": True,
             "functions": total_funcs,
             "candidates": candidates,
             "inserts": len(prepared),
         }
-
 
 
 class LayoutPass(ObfuscationPass):
@@ -482,10 +306,10 @@ def main():
     ap.add_argument("--file", type=str, default='./gptcomments/TheContract.sol', help="指定单个 .sol 文件")
     ap.add_argument("--dir", type=str, default=None, help="指定目录（递归处理 .sol）")
     ap.add_argument("--out", type=str, default="./obf_output", help="输出目录")
-    ap.add_argument("--enable", type=str, default="cf", help="启用的 Pass 列表（逗号分隔）：cf,dead,layout")
+    ap.add_argument("--enable", type=str, default="cf, dead, literal", help="启用的 Pass 列表（逗号分隔）：cf,dead,layout")
     ap.add_argument("--seed", type=int, default=None)
     
-    ap.add_argument("--cf-density", type=float, default=0.9, help="ControlFlow 注入密度（占位）")
+    ap.add_argument("--cf-density", type=float, default=0.5, help="ControlFlow 注入密度（占位）")
     ap.add_argument("--dead-density", type=float, default=0.3, help="DeadCode 注入密度（占位）")
     ap.add_argument("--literal-density", type=float, default=1.0, help="String literal obfuscation rate (0.0-1.0)")
     ap.add_argument("--layout-shuffle", type=float, default=0.0, help="Layout 重排强度（占位）")
