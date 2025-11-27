@@ -2,22 +2,24 @@
 # -*- coding: utf-8 -*-
 
 from __future__ import annotations
-from pathlib import Path
-from dataclasses import dataclass, field
+
 import argparse
 import random
 import os
-from typing import List, Tuple, Dict, Any, Optional, Iterable, Callable
-
-from solidity_parser import filesys
-from solidity_parser.ast import symtab, solnodes
-from obf_deadcode import iter_ast_roots, collect_top_level_slots, generate_dead_code, safe_func_name
-from obf_literal import obfuscate_code_literals
-from obf_controlflow import obfuscate_code_cf
-from obf_mathOperation import ConfusingMathOperationClass as MathOps
 import subprocess
 import re
 import json
+
+from functools import partial
+from typing import List, Tuple, Dict, Any, Optional, Iterable, Callable
+from pathlib import Path
+from dataclasses import dataclass, field
+from solidity_parser import filesys
+from solidity_parser.ast import symtab, solnodes, helper as ast_helper
+from obf_deadcode import iter_ast_roots, collect_top_level_slots, generate_dead_code, safe_func_name
+from obf_literal import obfuscate_code_literals
+from obf_controlflow import obfuscate_code_cf, minify_code, shuffle_code_blocks
+from obf_mathOperation import ConfusingMathOperationClass as MathOps
 
 
 # =========================================================
@@ -39,7 +41,7 @@ def get_grammar_tree(file_path) -> str:
 
 @dataclass
 class ModuleContext:
-    """每处理一个文件，构造一个上下文；Pass 在其中读取 AST/源码并回写。"""
+    """每处理一个文件, 构造一个上下文; Pass 在其中读取 AST/源码并回写。"""
     project_dir: Path
     file_name: str
     vfs: Any
@@ -48,6 +50,19 @@ class ModuleContext:
     src: str
     meta: Dict[str, Any] = field(default_factory=dict)
 
+    def rebuild_ast(self, origin=None) -> None:
+        """
+            根据当前 self.src 重建 AST。
+            逻辑相同: self.vfs._add_loaded_source(self.file_name, self.src)
+        """
+        creator_options = {
+            'origin': origin
+        }
+        partial_creator = partial(ast_helper.make_ast, **creator_options)
+        loaded_source = filesys.LoadedSource(self.file_name, self.src, None, partial_creator)
+        self.vfs.sources[self.file_name] = loaded_source
+        self.ast_root = self.vfs.sources[self.file_name].ast
+
     def rebuild(self, new_src: str) -> None:
         """
         将 new_src 作为当前源码，并在需要时重建 AST。
@@ -55,14 +70,7 @@ class ModuleContext:
         建议在实际实现时重新构建 VFS/符号表并赋值给 ast_root。
         """
         self.src = new_src
-        # 如需严格的“源码→AST”刷新逻辑，可在实现具体 Pass 时补上：
-        #   self.vfs = filesys.VirtualFileSystem(self.project_dir, None, [])
-        #   self.sym_builder = symtab.Builder2(self.vfs)
-        #   self.sym_builder.process_or_find_from_base_dir(self.file_name)
-        #   loaded = self.vfs.sources[self.file_name]
-        #   self.ast_root = loaded.ast
-        #   self.src = loaded.contents
-
+        self.rebuild_ast()
 
 class ObfuscationPass:
     """所有混淆 Pass 的抽象基类。"""
@@ -84,10 +92,6 @@ class ObfuscationPass:
 # 具体占位 Pass（未实现：仅日志 & 接口）
 # =========================================================
 
-from pathlib import Path
-from solidity_parser import filesys
-from solidity_parser.ast import symtab
-
 class StringLiteralPass(ObfuscationPass):
     name = "StringLiteral"
 
@@ -108,6 +112,7 @@ class StringLiteralPass(ObfuscationPass):
         changed = (new_src != ctx.src)
         print(f"[{self.name}] {ctx.project_dir / ctx.file_name}: density={density}, changed={changed}")
         return new_src, {"changed": changed, "density": density}
+
 
 class ControlFlowPass(ObfuscationPass):
     name = "ControlFlow"
@@ -213,10 +218,17 @@ class LayoutPass(ObfuscationPass):
         print(f"[{self.name}] {ctx.project_dir / ctx.file_name}: renamed={stats['renamed']}, changed={stats['changed']}")
         return new_src, stats
 
-from dataclasses import dataclass
-from typing import List, Dict, Tuple, Any
-from pathlib import Path
-import json
+
+class ChaosPass(ObfuscationPass):
+    name = "Chaos"
+
+    def transform(self, ctx: ModuleContext) -> Tuple[str, Dict[str, Any]]:
+        src = ctx.src
+        # src = shuffle_code_blocks(src)
+        src = minify_code(src)
+        print(f"[{self.name}] {ctx.project_dir / ctx.file_name}: minified and shuffled")
+        return src, {"changed": True}    
+
 
 # 假定你已有：ObfuscationPass, ModuleContext, get_grammar_tree
 # from your_module import ObfuscationPass, ModuleContext, get_grammar_tree
@@ -359,10 +371,10 @@ def enumerate_sol_files(base: Path) -> Iterable[Path]:
                 yield Path(root) / f
 
 
-def main():
+def get_args() -> argparse.Namespace:
     ap = argparse.ArgumentParser(description="Solidity Obfuscation Pipeline (scaffold)")
     ap.add_argument("--file", type=str, default="TheContract.sol", help="指定.sol 文件, 以,分割")
-    ap.add_argument("--dir", type=str, default="./solidity_project/src/", help="指定目录（递归处理 .sol)")
+    ap.add_argument("--dir", type=str, default="./solidity_project/src/", help="指定目录(递归处理 .sol)")
     ap.add_argument("--out", type=str, default="./obf_output", help="输出目录")
     ap.add_argument("--enable", type=str, default="cf,dead,literal,layout", help="启用的 Pass 列表(逗号分隔) cf,dead,layout")
     ap.add_argument("--seed", type=int, default=None)
@@ -372,9 +384,11 @@ def main():
     ap.add_argument("--literal-density", type=float, default=1.0, help="String literal obfuscation rate (0.0-1.0)")
     ap.add_argument("--layout-shuffle", type=float, default=0.0, help="Layout 重排强度（占位）")
     args = ap.parse_args()
+    return args
 
-    if not args.dir:
-        raise ValueError("必须指定 --dir")
+
+def main():
+    args = get_args()
 
     if args.seed is not None:
         random.seed(args.seed)
@@ -397,6 +411,8 @@ def main():
         passes.append(StringLiteralPass(density=args.literal_density))
     if "layout" in enable:
         passes.append(LayoutPass(shuffle=args.layout_shuffle))
+    if "chaos" in enable:
+        passes.append(ChaosPass())
 
     base_dir = Path(args.dir) # if args.dir else Path(".")
     # 指定文件

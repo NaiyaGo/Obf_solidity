@@ -2,12 +2,13 @@
 # 无硬编码版本：通过 get_grammar_tree(file_path) 解析 AST，
 # 用传入的 src 做正则定位与文本替换；返回 (new_src, stats)
 
-from typing import Any
-from pathlib import Path
 import subprocess
 import json
 import re
 import uuid
+
+from typing import Any
+from pathlib import Path
 
 # -------------------- JS 桥接 --------------------
 def get_grammar_tree(file_path) -> str:
@@ -210,7 +211,7 @@ def layout_obfuscate(src: str, file_path: str) -> tuple[str, dict]:
     """
     - src: 当前要混淆的源码（字符串）
     - file_path: 让 Node 解析的“同一份源”的磁盘路径（由外部保证 file_path 内容与 src 一致）
-      * 若你在 pipeline 里已经把 src 写到了一个临时路径 tmp.sol，则把 tmp.sol 的绝对路径传进来即可
+      * 若你在 pipeline 里已经把 src 写到了一个临时路径 tmp.sol, 则把 tmp.sol 的绝对路径传进来即可
     """
     # 1) 重置全局状态
     obfuscatable.clear()

@@ -134,8 +134,8 @@ def modify_text(src_code, modifications):
     current_source_code = src_code
 
     for ins in reverse_sorted_modifications:
-        stmt_text_offset = ins.stmt.start_buffer_index
-        left, right = (current_source_code[0:stmt_text_offset], current_source_code[stmt_text_offset:])
+        left = current_source_code[0:ins.stmt.start_buffer_index]
+        right = current_source_code[ins.stmt.end_buffer_index:]
 
         # for formatting the comments nicely
         whitespace = get_trailing_whitespace(left)

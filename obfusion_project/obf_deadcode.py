@@ -1,5 +1,6 @@
-from solidity_parser.ast import symtab, solnodes
 import random
+
+from solidity_parser.ast import symtab, solnodes
 from typing import List, Any
 
 

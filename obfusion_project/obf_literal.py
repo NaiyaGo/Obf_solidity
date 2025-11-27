@@ -1,11 +1,13 @@
 if __name__ == '__main__':
     pass
 
+
+import random
+import re
+
+from typing import List
 from pathlib import Path
 from dataclasses import dataclass
-import random
-from typing import List
-
 from solidity_parser import filesys
 from solidity_parser.ast import symtab, solnodes
 
@@ -64,9 +66,6 @@ def find_string_literals_in_ast(node):
             string_literals.extend(find_string_literals_in_ast(child))
 
     return string_literals
-
-
-import re
 
 INDENT_REG = re.compile(r'[ \t]+$')
 
