@@ -208,6 +208,7 @@ class LayoutPass(ObfuscationPass):
 
         # 直接用刚才封装好的入口
         from obf_layout import layout_obfuscate
+        print(tmp_path)
         new_src, stats = layout_obfuscate(ctx.src, str(tmp_path))
         print(f"[{self.name}] {ctx.project_dir / ctx.file_name}: renamed={stats['renamed']}, changed={stats['changed']}")
         return new_src, stats
@@ -363,10 +364,10 @@ def main():
     ap.add_argument("--file", type=str, default="TheContract.sol", help="指定.sol 文件, 以,分割")
     ap.add_argument("--dir", type=str, default="./solidity_project/src/", help="指定目录（递归处理 .sol)")
     ap.add_argument("--out", type=str, default="./obf_output", help="输出目录")
-    ap.add_argument("--enable", type=str, default="layout", help="启用的 Pass 列表(逗号分隔) cf,dead,layout")
+    ap.add_argument("--enable", type=str, default="cf,dead,literal,layout", help="启用的 Pass 列表(逗号分隔) cf,dead,layout")
     ap.add_argument("--seed", type=int, default=None)
     
-    ap.add_argument("--cf-density", type=float, default=0.5, help="ControlFlow 注入密度（占位）")
+    ap.add_argument("--cf-density", type=float, default=0.9, help="ControlFlow 注入密度（占位）")
     ap.add_argument("--dead-density", type=float, default=0.3, help="DeadCode 注入密度（占位）")
     ap.add_argument("--literal-density", type=float, default=1.0, help="String literal obfuscation rate (0.0-1.0)")
     ap.add_argument("--layout-shuffle", type=float, default=0.0, help="Layout 重排强度（占位）")

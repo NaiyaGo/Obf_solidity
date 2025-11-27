@@ -10,16 +10,19 @@ import re
 import uuid
 
 # -------------------- JS 桥接 --------------------
-def get_grammar_tree(file_path: str) -> str:
-    """调用 Node 侧 getGrammarTree.js（需支持 argv[2] 指定文件路径）。"""
-    res = subprocess.run(
+def get_grammar_tree(file_path) -> str:
+    # 调用 Node.js 脚本
+    # 调用 Node.js 脚本（已支持传入目标文件路径）
+    result = subprocess.run(
         ["node", "./obfusion_project/getGrammarTree.js", file_path],
         capture_output=True,
         text=True
     )
-    if res.returncode != 0:
-        raise RuntimeError(res.stderr or "getGrammarTree.js failed")
-    return res.stdout
+    print(result)
+    if result.returncode != 0 and result.stderr:
+        raise RuntimeError(result.stderr)
+
+    return result.stdout
 
 # -------------------- 你原脚本里的全局对象（保留） --------------------
 predefined_keywords = {
@@ -216,6 +219,7 @@ def layout_obfuscate(src: str, file_path: str) -> tuple[str, dict]:
     Match.content = src  # 供正则定位
 
     # 2) 解析 AST(JSON)
+    print(file_path)
     ast_json = get_grammar_tree(file_path)
     solidity_ast = json.loads(ast_json)
 
