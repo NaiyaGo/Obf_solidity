@@ -370,7 +370,7 @@ def enumerate_sol_files(base: Path) -> Iterable[Path]:
 def main():
     ap = argparse.ArgumentParser(description="Solidity Obfuscation Pipeline (scaffold)")
     ap.add_argument("--file", type=str, default="TheContract.sol", help="指定.sol 文件, 以,分割")
-    ap.add_argument("--dir", type=str, default="./solidity_project/src/", help="指定目录（递归处理 .sol)")
+    ap.add_argument("--dir", type=str, default="./solidity_project/src/", help="指定目录(递归处理 .sol)")
     ap.add_argument("--out", type=str, default="./obf_output", help="输出目录")
     ap.add_argument("--enable", type=str, default="layout", help="启用的 Pass 列表(逗号分隔) cf,dead,literal,layout")
     ap.add_argument("--seed", type=int, default=None)

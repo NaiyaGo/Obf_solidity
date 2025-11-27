@@ -1,6 +1,7 @@
 .idea/
 .venv/
 output/
+obf_output*
 obf_output/
 node_modules/
 __pycache__/
