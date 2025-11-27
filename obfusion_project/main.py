@@ -18,9 +18,8 @@ from solidity_parser import filesys
 from solidity_parser.ast import symtab, solnodes, helper as ast_helper
 from obf_deadcode import iter_ast_roots, collect_top_level_slots, generate_dead_code, safe_func_name
 from obf_literal import obfuscate_code_literals
-from obf_controlflow import obfuscate_code_cf
+from obf_controlflow import obfuscate_code_cf, minify_code, shuffle_code_blocks
 from obf_mathOperation import ConfusingMathOperationClass as MathOps
-
 
 
 # =========================================================
@@ -42,7 +41,7 @@ def get_grammar_tree(file_path) -> str:
 
 @dataclass
 class ModuleContext:
-    """每处理一个文件，构造一个上下文；Pass 在其中读取 AST/源码并回写。"""
+    """每处理一个文件, 构造一个上下文; Pass 在其中读取 AST/源码并回写。"""
     project_dir: Path
     file_name: str
     vfs: Any
@@ -93,10 +92,6 @@ class ObfuscationPass:
 # 具体占位 Pass（未实现：仅日志 & 接口）
 # =========================================================
 
-from pathlib import Path
-from solidity_parser import filesys
-from solidity_parser.ast import symtab
-
 class StringLiteralPass(ObfuscationPass):
     name = "StringLiteral"
 
@@ -117,6 +112,7 @@ class StringLiteralPass(ObfuscationPass):
         changed = (new_src != ctx.src)
         print(f"[{self.name}] {ctx.project_dir / ctx.file_name}: density={density}, changed={changed}")
         return new_src, {"changed": changed, "density": density}
+
 
 class ControlFlowPass(ObfuscationPass):
     name = "ControlFlow"
@@ -221,10 +217,17 @@ class LayoutPass(ObfuscationPass):
         print(f"[{self.name}] {ctx.project_dir / ctx.file_name}: renamed={stats['renamed']}, changed={stats['changed']}")
         return new_src, stats
 
-from dataclasses import dataclass
-from typing import List, Dict, Tuple, Any
-from pathlib import Path
-import json
+
+class ChaosPass(ObfuscationPass):
+    name = "Chaos"
+
+    def transform(self, ctx: ModuleContext) -> Tuple[str, Dict[str, Any]]:
+        src = ctx.src
+        # src = shuffle_code_blocks(src)
+        src = minify_code(src)
+        print(f"[{self.name}] {ctx.project_dir / ctx.file_name}: minified and shuffled")
+        return src, {"changed": True}    
+
 
 # 假定你已有：ObfuscationPass, ModuleContext, get_grammar_tree
 # from your_module import ObfuscationPass, ModuleContext, get_grammar_tree
@@ -367,12 +370,12 @@ def enumerate_sol_files(base: Path) -> Iterable[Path]:
                 yield Path(root) / f
 
 
-def main():
+def get_args() -> argparse.Namespace:
     ap = argparse.ArgumentParser(description="Solidity Obfuscation Pipeline (scaffold)")
     ap.add_argument("--file", type=str, default="TheContract.sol", help="指定.sol 文件, 以,分割")
     ap.add_argument("--dir", type=str, default="./solidity_project/src/", help="指定目录(递归处理 .sol)")
     ap.add_argument("--out", type=str, default="./obf_output", help="输出目录")
-    ap.add_argument("--enable", type=str, default="layout", help="启用的 Pass 列表(逗号分隔) cf,dead,literal,layout")
+    ap.add_argument("--enable", type=str, default="layout", help="启用的 Pass 列表(逗号分隔) cf,dead,literal,layout,chaos")
     ap.add_argument("--seed", type=int, default=None)
     
     ap.add_argument("--cf-density", type=float, default=0.5, help="ControlFlow 注入密度（占位）")
@@ -380,6 +383,11 @@ def main():
     ap.add_argument("--literal-density", type=float, default=1.0, help="String literal obfuscation rate (0.0-1.0)")
     ap.add_argument("--layout-shuffle", type=float, default=0.0, help="Layout 重排强度（占位）")
     args = ap.parse_args()
+    return args
+
+
+def main():
+    args = get_args()
 
     if args.seed is not None:
         random.seed(args.seed)
@@ -402,6 +410,8 @@ def main():
         passes.append(StringLiteralPass(density=args.literal_density))
     if "layout" in enable:
         passes.append(LayoutPass(shuffle=args.layout_shuffle))
+    if "chaos" in enable:
+        passes.append(ChaosPass())
 
     base_dir = Path(args.dir) # if args.dir else Path(".")
     # 指定文件

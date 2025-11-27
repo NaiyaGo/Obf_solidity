@@ -24,7 +24,7 @@ options:
   --file FILE           指定.sol 文件, 以,分割
   --dir DIR             指定目录 (递归处理 .sol)
   --out OUT             输出目录
-  --enable ENABLE       启用的 Pass 列表(逗号分隔) cf,dead,literal,layout
+  --enable ENABLE       启用的 Pass 列表(逗号分隔) cf,dead,literal,layout,chaos
   --seed SEED
   --cf-density CF_DENSITY
                         ControlFlow 注入密度（占位）
@@ -39,9 +39,12 @@ options:
 ### project structure
 ```
 |- obfusion_project
-|---|
-|   |-obf_controlflow.py
-|   |-obf_deadcode.py
-|   |-obf_layout.py
+|---|- obf_controlflow.py
+|---|- obf_deadcode.py
+|---|- obf_layout.py
 |- solidity_project
+|---|- lib
+|---|- src
+|   |---|- TheContract.sol
+|   |---|- TestContract.sol
 ```

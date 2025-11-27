@@ -2,12 +2,13 @@
 # 无硬编码版本：通过 get_grammar_tree(file_path) 解析 AST，
 # 用传入的 src 做正则定位与文本替换；返回 (new_src, stats)
 
-from typing import Any
-from pathlib import Path
 import subprocess
 import json
 import re
 import uuid
+
+from typing import Any
+from pathlib import Path
 
 # -------------------- JS 桥接 --------------------
 def get_grammar_tree(file_path: str) -> str:
