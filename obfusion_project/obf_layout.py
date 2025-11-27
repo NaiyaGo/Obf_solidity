@@ -11,7 +11,7 @@ import uuid
 
 # -------------------- JS 桥接 --------------------
 def get_grammar_tree(file_path: str) -> str:
-    """调用 Node 侧 getGrammarTree.js（需支持 argv[2] 指定文件路径）。"""
+    """调用 Node 侧 getGrammarTree.js(需支持 argv[2] 指定文件路径）。"""
     res = subprocess.run(
         ["node", "./obfusion_project/getGrammarTree.js", file_path],
         capture_output=True,
@@ -207,7 +207,7 @@ def layout_obfuscate(src: str, file_path: str) -> tuple[str, dict]:
     """
     - src: 当前要混淆的源码（字符串）
     - file_path: 让 Node 解析的“同一份源”的磁盘路径（由外部保证 file_path 内容与 src 一致）
-      * 若你在 pipeline 里已经把 src 写到了一个临时路径 tmp.sol，则把 tmp.sol 的绝对路径传进来即可
+      * 若你在 pipeline 里已经把 src 写到了一个临时路径 tmp.sol, 则把 tmp.sol 的绝对路径传进来即可
     """
     # 1) 重置全局状态
     obfuscatable.clear()
