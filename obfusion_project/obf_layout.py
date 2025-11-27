@@ -19,7 +19,6 @@ def get_grammar_tree(file_path) -> str:
         capture_output=True,
         text=True
     )
-    print(result)
     if result.returncode != 0 and result.stderr:
         raise RuntimeError(result.stderr)
 

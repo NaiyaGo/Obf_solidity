@@ -72,6 +72,12 @@ class ModuleContext:
         self.src = new_src
         self.rebuild_ast()
 
+    def sync_tmp(self):
+        self.tmp_root = Path(".solp_tmp")
+        self.tmp_file = self.tmp_root / self.file_name
+        self.tmp_file.parent.mkdir(parents=True, exist_ok=True)
+        self.tmp_file.write_text(self.src, encoding="utf-8")
+
 class ObfuscationPass:
     """所有混淆 Pass 的抽象基类。"""
     name: str = "BasePass"
@@ -207,14 +213,10 @@ class LayoutPass(ObfuscationPass):
     name = "Layout"
 
     def transform(self, ctx: ModuleContext):
-        tmp_path = Path(".solp_tmp") / ctx.file_name
-        tmp_path.parent.mkdir(parents=True, exist_ok=True)
-        tmp_path.write_text(ctx.src, encoding="utf-8")
 
         # 直接用刚才封装好的入口
         from obf_layout import layout_obfuscate
-        print(tmp_path)
-        new_src, stats = layout_obfuscate(ctx.src, str(tmp_path))
+        new_src, stats = layout_obfuscate(ctx.src, str(ctx.tmp_file))
         print(f"[{self.name}] {ctx.project_dir / ctx.file_name}: renamed={stats['renamed']}, changed={stats['changed']}")
         return new_src, stats
 
@@ -259,12 +261,9 @@ class OperationPass(ObfuscationPass):
 
     def transform(self, ctx: 'ModuleContext') -> Tuple[str, Dict[str, Any]]:
         # 1) 把当前源码落盘到临时路径，供 JS 侧解析（保持和你的 get_grammar_tree 约定）
-        tmp_path = Path(".solp_tmp") / ctx.file_name
-        tmp_path.parent.mkdir(parents=True, exist_ok=True)
-        tmp_path.write_text(ctx.src, encoding="utf-8")
 
         # 2) 解析 JS AST（必须是 loc/range 开启的）
-        js_ast: Any = json.loads(get_grammar_tree(str(tmp_path)))
+        js_ast: Any = json.loads(get_grammar_tree(str(ctx.tmp_file)))
         src = ctx.src
 
         # 3) DFS 收集 BinaryOperation，生成替换计划
@@ -351,11 +350,13 @@ def run_pipeline_on_file(project_dir: Path, file_name: str, passes: List[Obfusca
     ctx = build_context(project_dir, file_name)
     print(f"[PIPELINE] Begin → {project_dir / file_name}")
     current_src = ctx.src
+    ctx.sync_tmp()
     for p in passes:
         new_src, meta = p.transform(ctx)
         # 如果 Pass 改动了源码，刷新上下文的源码；（AST 刷新可在具体 Pass 内实现）
         if new_src != current_src:
             ctx.rebuild(new_src)
+            ctx.sync_tmp()
             current_src = new_src
             print(f"  └─ [{p.name}] changed=True, meta={meta}")
         else:
